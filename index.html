@@ -4495,19 +4495,6 @@ async function _buildPresentacionPDF(pf, proy, dist, c) {
   const pInv   = Math.round(dist.pctInv||0);
   const pKLY   = Math.round(dist.pctKLY||0);
   const today2 = new Date().toLocaleDateString("es-AR");
-  // Investor-specific ROI: pool return / total capital invested
-  const roiInv  = dist.hasInv && dist.totalInv > 0
-    ? Math.round((dist.poolInv / dist.totalInv) * 100 * 10) / 10
-    : roi;
-  // Cost breakdown for donut chart
-  const costOtros = Math.max(0, inv - compra - obra);
-  const costCompPct = inv > 0 ? Math.round(compra/inv*100) : 0;
-  const costObraPct = inv > 0 ? Math.round(obra/inv*100) : 0;
-  const costOtrosPct = Math.max(0, 100 - costCompPct - costObraPct);
-  // Etapas de compra (payment milestones)
-  const etapas = (S._proyData?.[pf.proyecto_id]?.etapas_compra_json || []).filter(e => e.monto > 0);
-  // Sell price per m²
-  const venta_m2 = sn(pf.venta_m2_cub || pf.precio_m2_venta || (m2cub > 0 ? venta/m2cub : 0));
   const LB     = "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";
 
   // Try to get map image
@@ -4527,28 +4514,6 @@ async function _buildPresentacionPDF(pf, proy, dist, c) {
   @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:"Inter",sans-serif; background:#fff; color:#1a1a1a; }
-  /* Donut chart section */
-  .donut-wrap { display:flex; align-items:center; gap:14px; }
-  .donut-canvas-wrap { flex-shrink:0; width:90px; height:90px; position:relative; }
-  .donut-canvas-wrap canvas { width:90px!important; height:90px!important; }
-  .donut-legend { flex:1; }
-  .donut-item { display:flex; align-items:center; gap:6px; margin-bottom:6px; }
-  .donut-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
-  .donut-lbl { font-size:7.5px; color:#555; flex:1; }
-  .donut-val { font-size:8px; font-weight:700; color:#1a1a1a; }
-  .donut-pct { font-size:7px; color:#999; margin-left:2px; }
-  /* Investor return highlight */
-  .inv-return-hero { background:linear-gradient(135deg,#e8f5e9,#f0faf0); border-radius:10px; padding:14px 16px; margin-bottom:8px; border-left:5px solid #1a7a3c; }
-  .inv-return-label { font-size:7px; font-weight:700; color:#1a7a3c; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:4px; }
-  .inv-return-amount { font-size:26px; font-weight:900; color:#1a7a3c; line-height:1; }
-  .inv-return-roi { font-size:9px; color:#444; margin-top:5px; }
-  .inv-return-roi strong { color:#1a7a3c; font-size:13px; }
-  .inv-mgmt-note { background:#f5f5f5; border-radius:6px; padding:8px 10px; font-size:7.5px; color:#777; }
-  /* Etapas table */
-  .etapas-table { width:100%; border-collapse:collapse; font-size:7.5px; }
-  .etapas-table th { background:#0a0a0a; color:#f7d819; padding:4px 8px; text-align:left; font-size:7px; letter-spacing:.5px; text-transform:uppercase; }
-  .etapas-table td { padding:4px 8px; border-bottom:1px solid #f0f0f0; color:#444; }
-  .etapas-table tr:last-child td { border-bottom:none; font-weight:700; color:#1a1a1a; background:#fafafa; }
   .page { width:210mm; min-height:297mm; background:#fff; overflow:hidden; page-break-after:always; position:relative; }
   .page:last-child { page-break-after:auto; }
   /* PAG 1 */
@@ -4706,9 +4671,9 @@ async function _buildPresentacionPDF(pf, proy, dist, c) {
     <div class="p1-map-overlay"><div class="p1-map-label">${direcc}</div><div class="p1-map-sub">Buenos Aires, Argentina</div></div>
   </div>
   <div class="p1-kpis">
-    <div class="kpi kpi-inv"><div class="kpi-label">Inversión total</div><div class="kpi-value">${F(inv)}</div><div class="kpi-sub">${m2pond>0?sf(m2pond,1)+"m² ponderados":"Capital requerido"}</div></div>
-    <div class="kpi kpi-gan"><div class="kpi-label">${dist.hasInv?"Pool inversores":"Ganancia estimada"}</div><div class="kpi-value">${dist.hasInv?F(gInv):F(gan)}</div><div class="kpi-sub">${dist.hasInv?pInv+"% de la ganancia":"Retorno neto"}</div></div>
-    <div class="kpi kpi-roi"><div class="kpi-label">${dist.hasInv?"ROI inversores":"ROI del proyecto"}</div><div class="kpi-value">${dist.hasInv?roiInv:roi}%</div><div class="kpi-sub">${roiA}% anualizado · ${dur} meses</div></div>
+    <div class="kpi kpi-inv"><div class="kpi-label">Inversión total</div><div class="kpi-value">${F(inv)}</div><div class="kpi-sub">Capital requerido</div></div>
+    <div class="kpi kpi-gan"><div class="kpi-label">Ganancia estimada</div><div class="kpi-value">${F(gan)}</div><div class="kpi-sub">Retorno neto</div></div>
+    <div class="kpi kpi-roi"><div class="kpi-label">ROI del proyecto</div><div class="kpi-value">${roi}%</div><div class="kpi-sub">${roiA}% anualizado</div></div>
   </div>
   <div class="p1-tagline">${c.tagline}</div>
   <div class="p1-footer"><div class="p1-footer-brand">KLY Flipping · klyarquitectura@gmail.com</div><div class="p1-footer-conf">Documento confidencial · Pág. 1</div></div>
@@ -4729,52 +4694,18 @@ async function _buildPresentacionPDF(pf, proy, dist, c) {
       </div>
     </div>
     <div class="section">
-      <div class="section-title"><span>Estructura de Costos</span></div>
-      <div class="donut-wrap" style="margin-bottom:8px">
-        <div class="donut-canvas-wrap"><canvas id="costDonut" width="90" height="90"></canvas></div>
-        <div class="donut-legend">
-          <div class="donut-item">
-            <div class="donut-dot" style="background:#34495e"></div>
-            <span class="donut-lbl">Precio de compra</span>
-            <span class="donut-val">${F(compra)}</span>
-            <span class="donut-pct">${costCompPct}%</span>
-          </div>
-          ${obra>0?`<div class="donut-item">
-            <div class="donut-dot" style="background:#7f8c8d"></div>
-            <span class="donut-lbl">Obra y reforma</span>
-            <span class="donut-val">${F(obra)}</span>
-            <span class="donut-pct">${costObraPct}%</span>
-          </div>`:""}
-          ${costOtros>0?`<div class="donut-item">
-            <div class="donut-dot" style="background:#95a5a6"></div>
-            <span class="donut-lbl">Gastos de compra</span>
-            <span class="donut-val">${F(costOtros)}</span>
-            <span class="donut-pct">${costOtrosPct}%</span>
-          </div>`:""}
-          <div class="donut-item" style="border-top:1px solid #eee;margin-top:4px;padding-top:5px">
-            <div class="donut-dot" style="background:#1a527a"></div>
-            <span class="donut-lbl" style="font-weight:700;color:#1a1a1a">Inversión total</span>
-            <span class="donut-val" style="color:#1a527a">${F(inv)}</span>
-          </div>
-        </div>
+      <div class="section-title"><span>Precio de Compra</span></div>
+      <div class="precio-hero">
+        <div class="precio-label">Precio de compra de la propiedad</div>
+        <div class="precio-value">${F(compra)}</div>
+        <div class="precio-m2">${cpm>0?"U$D "+cpm.toLocaleString("es-AR")+" / m² ponderado":""}</div>
       </div>
       <div class="cost-grid">
         <div class="cost-box c-compra"><div class="cost-box-label">$/m² compra</div><div class="cost-box-val">${cpm>0?"U$D "+cpm.toLocaleString("es-AR"):"-"}</div></div>
-        <div class="cost-box c-obra"><div class="cost-box-label">$/m² venta</div><div class="cost-box-val">${venta_m2>0?"U$D "+venta_m2.toLocaleString("es-AR"):obra>0?F(obra):"A confirmar"}</div></div>
+        <div class="cost-box c-obra"><div class="cost-box-label">Presupuesto obra</div><div class="cost-box-val">${obra>0?F(obra):"A confirmar"}</div></div>
         <div class="cost-box c-total"><div class="cost-box-label">Inversión total</div><div class="cost-box-val">${F(inv)}</div></div>
       </div>
     </div>
-    ${etapas.length > 0 ? `
-    <div class="section">
-      <div class="section-title"><span>Cronograma de Compra</span></div>
-      <table class="etapas-table">
-        <thead><tr><th>Etapa</th><th>Fecha</th><th style="text-align:right">Monto</th></tr></thead>
-        <tbody>
-          ${etapas.map(e => `<tr><td>${e.nombre||"—"}</td><td>${e.fecha||"—"}</td><td style="text-align:right;font-weight:700">${F(e.monto)}</td></tr>`).join("")}
-          <tr><td colspan="2">TOTAL</td><td style="text-align:right">${F(etapas.reduce((s,e)=>s+(e.monto||0),0))}</td></tr>
-        </tbody>
-      </table>
-    </div>` : ""}
     <div class="section">
       <div class="section-title"><span>Estructura Financiera</span></div>
       <div class="fin-table">
@@ -4803,23 +4734,12 @@ async function _buildPresentacionPDF(pf, proy, dist, c) {
       </div>
     </div>
     <div class="section">
-      <div class="section-title"><span>${dist.hasInv?"Tu Retorno como Inversor":"Distribución de Ganancias"}</span></div>
-      ${dist.hasInv ? `
-      <div class="inv-return-hero">
-        <div class="inv-return-label">Pool de inversores — ${pInv}% de la ganancia del proyecto</div>
-        <div class="inv-return-amount">${F(gInv)}</div>
-        <div class="inv-return-roi">ROI estimado sobre capital: <strong>${roiInv}%</strong> · ${dur} meses · ${roiA}% anualizado</div>
-      </div>
-      <div class="inv-mgmt-note">
-        <strong style="color:#444">Gestión integral a cargo de KLY Flipping</strong> — arquitectura, reforma y comercialización sin participación activa del inversor.
-      </div>
-      ` : `
+      <div class="section-title"><span>Distribución de Ganancias</span></div>
       <div class="dist-bar"><div class="dist-inv" style="width:${Math.max(pInvW,5)}%">${pInv>10?"Inversores "+pInv+"%":""}</div><div class="dist-kly" style="width:${Math.max(100-pInvW,5)}%">${pKLY>10?"KLY "+pKLY+"%":""}</div></div>
       <div class="dist-amounts">
         <div class="dist-box dist-inv-box"><div style="color:#888;font-size:6.5px;text-transform:uppercase;letter-spacing:1px">Pool Inversores</div><strong style="color:#1a7a3c">${F(gInv)}</strong></div>
         <div class="dist-box dist-kly-box"><div style="color:#888;font-size:6.5px;text-transform:uppercase;letter-spacing:1px">Ganancia KLY</div><strong style="color:#f7a800">${F(gKLY)}</strong></div>
       </div>
-      `}
     </div>
   </div>
   <div class="p-footer"><span class="p-footer-text">KLY Flipping · Documento confidencial</span><span class="p-footer-page">Pág. 2</span></div>
@@ -4871,36 +4791,15 @@ async function _buildPresentacionPDF(pf, proy, dist, c) {
 </div>
 </body></html>`;
 
-  // Chart.js donut script — injected at end of document
-  const chartScript = `
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>
-  <script>
-    window.addEventListener('load', function() {
-      const canvas = document.getElementById('costDonut');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const data = [${compra},${obra},${costOtros}].filter(v=>v>0);
-      const labels = ['Compra','Obra','Gastos'].slice(0,data.length);
-      const colors = ['#34495e','#7f8c8d','#95a5a6'].slice(0,data.length);
-      new Chart(ctx, {
-        type:'doughnut',
-        data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:0, hoverOffset:4 }] },
-        options:{ cutout:'65%', plugins:{ legend:{display:false}, tooltip:{enabled:false} }, animation:{duration:0} }
-      });
-    });
-  <\/script>`;
-
-  const htmlFull = html.replace('</body>', chartScript + '</body>');
-
   // Open in new window and trigger print to PDF
   const win = window.open("","_blank","width=900,height=700");
-  win.document.write(htmlFull);
+  win.document.write(html);
   win.document.close();
-  // Wait for fonts, images and Chart.js to render
+  // Wait for fonts/images then print
   win.onload = () => {
     setTimeout(() => {
       win.print();
-    }, 2500);
+    }, 1500);
   };
   toast("Presentacion lista - usa Cmd+P para guardar como PDF");
 }
@@ -5913,23 +5812,55 @@ function abrirPortalInversor(invId) {
   const inv = S.inversores.find(i => i.id === invId);
   if (!inv) return;
 
-  // Generar token simple basado en id + secreto empresa
-  const token = btoa(`${invId}:${S.eid}`).replace(/=/g, '');
-  const baseUrl = window.location.href.split('?')[0];
-  const portalUrl = `${baseUrl}?portal=${token}`;
+  const token = inv.portal_token;
+  const activo = inv.portal_activo;
+  const ultimoAcceso = inv.ultimo_acceso;
+
+  // URL del portal — mismo dominio que la app pero en /kly-portal.html
+  const base = window.location.origin;
+  const portalUrl = token ? `${base}/kly-portal.html?t=${token}` : null;
+
+  const fD = s => s ? new Date(s).toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : 'Nunca';
 
   const html = `
   <div style="padding:20px">
-    <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3);margin-bottom:14px">Portal inversor — ${inv.nombre}</div>
-    <div class="card mb12" style="padding:14px">
-      <div class="cl">Código</div><div style="font-family:var(--fm);font-size:18px;margin-bottom:8px">${inv.id_unico}</div>
-      <div class="cl">Link de acceso</div>
-      <div style="background:var(--s1);border-radius:var(--r1);padding:8px 12px;font-size:10px;font-family:var(--fm);word-break:break-all;margin:6px 0">${portalUrl}</div>
-      <div style="font-size:9px;color:var(--tx3)">Este link da acceso únicamente a los datos de este inversor. No expone números internos del proyecto.</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3);margin-bottom:16px">Portal Inversor — ${inv.nombre}</div>
+
+    <!-- Estado -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div style="width:8px;height:8px;border-radius:50%;background:${activo ? 'var(--ok)' : 'var(--tx3)'}"></div>
+      <span style="font-size:13px;color:${activo ? 'var(--ok)' : 'var(--tx2)'};font-weight:600">${activo ? 'Portal habilitado' : 'Portal no habilitado'}</span>
+      ${activo ? `<span style="font-size:11px;color:var(--tx3)">Último acceso: ${fD(ultimoAcceso)}</span>` : ''}
     </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn bp" onclick="navigator.clipboard.writeText('${portalUrl}').then(()=>toast('Link copiado'))">📋 Copiar link</button>
-      <button class="btn bg" onclick="CM('mo-portal')">Cerrar</button>
+
+    ${token ? `
+    <div class="card mb12" style="padding:14px">
+      <div class="cl" style="margin-bottom:6px">Link de acceso del inversor</div>
+      <div style="background:var(--s1);border-radius:var(--r1);padding:10px 12px;font-size:10px;font-family:var(--fm);word-break:break-all;color:var(--tx2);margin-bottom:8px">${portalUrl}</div>
+      <div style="font-size:10px;color:var(--tx3);line-height:1.5">
+        Este link es único y exclusivo para <b>${inv.nombre}</b>. Solo muestra sus propias inversiones. Compartilo por WhatsApp o email.
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <button class="btn bp" onclick="navigator.clipboard.writeText('${portalUrl}').then(()=>toast('Link copiado al portapapeles'))">📋 Copiar link</button>
+      <button class="btn bg bs" onclick="compartirWhatsApp('${encodeURIComponent(portalUrl)}','${inv.nombre.split(' ')[0]}')">WhatsApp</button>
+      <button class="btn bg bs" onclick="window.open('${portalUrl}','_blank')">Ver portal →</button>
+    </div>
+    ` : `
+    <div style="background:rgba(247,216,25,.06);border:1px solid rgba(247,216,25,.2);border-radius:var(--r);padding:14px;margin-bottom:16px;font-size:12px;color:var(--tx2);line-height:1.6">
+      Este inversor no tiene token de portal. Ejecutá la migración SQL del portal en Supabase para generarlo automáticamente.
+    </div>
+    `}
+
+    <!-- Acciones de gestión -->
+    <div style="border-top:1px solid var(--b1);padding-top:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Gestión del acceso</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${activo ? `<button class="btn bd bs" onclick="togglePortalAcceso('${inv.id}', false)">🔒 Deshabilitar acceso</button>` :
+                   `<button class="btn bg bs" onclick="togglePortalAcceso('${inv.id}', true)">🔓 Habilitar acceso</button>`}
+        <button class="btn bd bs" onclick="resetPortalPin('${inv.id}')">↺ Resetear PIN</button>
+        <button class="btn bg" onclick="CM('mo-portal')">Cerrar</button>
+      </div>
     </div>
   </div>`;
 
@@ -5938,12 +5869,38 @@ function abrirPortalInversor(invId) {
     mo = document.createElement('div');
     mo.id = 'mo-portal';
     mo.className = 'mo';
-    mo.innerHTML = `<div class="moc" style="max-width:520px;width:95%"><div id="mo-portal-body"></div></div>`;
+    mo.innerHTML = `<div class="moc" style="max-width:540px;width:95%"><div id="mo-portal-body"></div></div>`;
     mo.onclick = e => { if (e.target === mo) CM('mo-portal'); };
     document.body.appendChild(mo);
   }
   $('mo-portal-body').innerHTML = html;
   OM('mo-portal');
+}
+
+function compartirWhatsApp(portalUrlEncoded, nombre) {
+  const msg = encodeURIComponent(`Hola ${nombre}! Te comparto el link de acceso a tu portal de inversiones KLY:\n\n${decodeURIComponent(portalUrlEncoded)}\n\nPodés ver el estado de tus inversiones, rentabilidad estimada y más. Cualquier consulta estamos disponibles.`);
+  window.open(`https://wa.me/?text=${msg}`, '_blank');
+}
+
+async function togglePortalAcceso(invId, habilitar) {
+  showLoad();
+  const { error } = await SB.from('inversores').update({ portal_activo: habilitar }).eq('id', invId);
+  hideLoad();
+  if (error) return toast(error.message, 'er');
+  await loadAll();
+  toast(habilitar ? 'Acceso habilitado' : 'Acceso deshabilitado');
+  CM('mo-portal');
+}
+
+async function resetPortalPin(invId) {
+  if (!confirm('¿Resetear el PIN? El inversor tendrá que crear uno nuevo la próxima vez que ingrese.')) return;
+  showLoad();
+  const { error } = await SB.from('inversores').update({ portal_pin: null }).eq('id', invId);
+  hideLoad();
+  if (error) return toast(error.message, 'er');
+  await loadAll();
+  toast('PIN reseteado — el inversor deberá crear uno nuevo');
+  CM('mo-portal');
 }
 
 // Verificar si es acceso portal al cargar

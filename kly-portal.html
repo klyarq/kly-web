@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>KLY — Portal de Inversores</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --y:#f7d819;--yd:rgba(247,216,25,.12);--yb:rgba(247,216,25,.22);
+  --bg:#0a0a0a;--s1:#111;--s2:#161616;--s3:#1e1e1e;--s4:#242424;
+  --b1:rgba(255,255,255,.07);--b2:rgba(255,255,255,.12);--b3:rgba(255,255,255,.18);
+  --tx1:#fff;--tx2:#aaa;--tx3:#555;
+  --pos:#27ae60;--posb:rgba(39,174,96,.15);--posbr:rgba(39,174,96,.25);
+  --neg:#e74c3c;--negb:rgba(231,76,60,.12);
+  --blu:#2980b9;--blub:rgba(41,128,185,.15);
+  --r:10px;--rl:14px;
+  --fm:'SF Mono','Fira Code','Fira Mono',monospace;
+}
+body{background:var(--bg);color:var(--tx1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* ─── LOADER ───────────────────────────────────────── */
+#loader{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:20px}
+#loader .logo-big{font-size:32px;font-weight:900;color:var(--y);letter-spacing:4px}
+.spin{width:32px;height:32px;border:2.5px solid var(--b1);border-top-color:var(--y);border-radius:50%;animation:sp .65s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ─── SCREENS ──────────────────────────────────────── */
+.sc{display:none;min-height:100vh}
+.sc.on{display:flex}
+
+/* ─── PIN SCREEN ───────────────────────────────────── */
+#sc-pin,#sc-setpin{align-items:center;justify-content:center;padding:24px;background:var(--bg)}
+.pin-wrap{width:100%;max-width:380px}
+.pin-header{text-align:center;margin-bottom:36px}
+.kly-mark{display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;background:var(--y);border-radius:14px;font-size:22px;font-weight:900;color:#0a0a0a;letter-spacing:-1px;margin-bottom:14px}
+.pin-header h2{font-size:22px;font-weight:700;margin-bottom:6px}
+.pin-header p{font-size:14px;color:var(--tx2);line-height:1.5}
+.pin-header .inv-name{color:var(--y);font-weight:600}
+.dots{display:flex;justify-content:center;gap:16px;margin-bottom:32px}
+.dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--b2);transition:all .15s}
+.dot.on{background:var(--y);border-color:var(--y);transform:scale(1.1)}
+.dot.err{background:var(--neg);border-color:var(--neg)}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:260px;margin:0 auto 20px}
+.nk{
+  background:var(--s2);border:1px solid var(--b1);border-radius:12px;
+  padding:18px 10px;font-size:22px;font-weight:600;text-align:center;
+  cursor:pointer;transition:background .1s,transform .08s;user-select:none;-webkit-user-select:none;
+  color:var(--tx1);
+}
+.nk:active{background:var(--s3);transform:scale(.95)}
+.nk.sm{font-size:15px;color:var(--tx2);font-weight:500}
+.nk.inv{visibility:hidden}
+.pin-err{background:var(--negb);border:1px solid rgba(231,76,60,.3);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--neg);text-align:center;margin-top:4px;display:none}
+.pin-err.on{display:block}
+.steps-dots{display:flex;gap:6px;justify-content:center;margin-bottom:20px}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--b2);transition:background .2s}
+.sdot.on{background:var(--y)}
+
+/* ─── MAIN PORTAL ──────────────────────────────────── */
+#sc-portal{flex-direction:column;background:var(--bg)}
+
+/* Header */
+.portal-header{
+  background:var(--s1);border-bottom:1px solid var(--b1);
+  padding:0 20px;height:60px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.ph-brand{display:flex;align-items:center;gap:10px}
+.ph-logo{width:34px;height:34px;background:var(--y);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#0a0a0a;letter-spacing:-0.5px;flex-shrink:0}
+.ph-title{font-size:14px;font-weight:700;letter-spacing:.3px}
+.ph-sub{font-size:11px;color:var(--tx3);margin-top:1px}
+.ph-right{display:flex;align-items:center;gap:12px}
+.ph-inv{text-align:right}
+.ph-inv-name{font-size:13px;font-weight:600;color:var(--tx1)}
+.ph-inv-code{font-size:11px;color:var(--tx3)}
+.btn-logout{background:transparent;border:1px solid var(--b2);border-radius:7px;padding:6px 14px;font-size:12px;color:var(--tx2);cursor:pointer;transition:all .15s}
+.btn-logout:hover{border-color:var(--b3);color:var(--tx1)}
+
+/* Body */
+.portal-body{padding:24px 20px 60px;max-width:800px;margin:0 auto;width:100%}
+
+/* Section label */
+.sec-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--tx3);margin-bottom:12px;margin-top:32px}
+
+/* KPI grid */
+.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:8px}
+@media(min-width:500px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:14px 16px}
+.kpi-label{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3);margin-bottom:7px}
+.kpi-val{font-size:20px;font-weight:800;font-family:var(--fm);line-height:1;color:var(--tx1)}
+.kpi-val.y{color:var(--y)}
+.kpi-val.g{color:var(--pos)}
+.kpi-sub{font-size:10px;color:var(--tx3);margin-top:4px}
+.kpi-hero{grid-column:1/-1;background:linear-gradient(135deg,var(--s2) 0%,rgba(247,216,25,.06) 100%);border-color:var(--yb)}
+
+/* ROI bar visual */
+.roi-track{height:4px;background:var(--b1);border-radius:2px;margin-top:8px;overflow:hidden}
+.roi-fill{height:100%;background:var(--y);border-radius:2px;transition:width .8s ease}
+.roi-fill.g{background:var(--pos)}
+
+/* Project cards */
+.proj-card{background:var(--s2);border:1px solid var(--b1);border-radius:var(--rl);overflow:hidden;margin-bottom:12px;transition:border-color .15s}
+.proj-card:hover{border-color:var(--b2)}
+.proj-card-head{padding:16px 18px;border-bottom:1px solid var(--b1);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.proj-name{font-size:16px;font-weight:700;margin-bottom:3px}
+.proj-dir{font-size:12px;color:var(--tx3)}
+.proj-badge{flex-shrink:0;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:.5px;margin-top:2px}
+.badge-vendido{background:var(--posb);color:var(--pos);border:1px solid var(--posbr)}
+.badge-activo,.badge-en_obra,.badge-comprado{background:var(--blub);color:var(--blu);border:1px solid rgba(41,128,185,.3)}
+.badge-cancelado{background:var(--negb);color:var(--neg);border:1px solid rgba(231,76,60,.25)}
+.proj-card-body{padding:16px 18px}
+.proj-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:480px){.proj-grid{grid-template-columns:repeat(4,1fr)}}
+.proj-stat{padding:10px 12px;background:var(--s3);border-radius:8px}
+.ps-label{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);margin-bottom:5px}
+.ps-val{font-size:15px;font-weight:700;font-family:var(--fm);color:var(--tx1)}
+.ps-val.y{color:var(--y)}
+.ps-val.g{color:var(--pos)}
+.proj-card-foot{padding:12px 18px;border-top:1px solid var(--b1);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.foot-item{font-size:11px;color:var(--tx3)}
+.foot-item span{color:var(--tx2);font-weight:500}
+
+/* ROI progress in card */
+.proj-roi-bar{margin-top:14px}
+.roi-labels{display:flex;justify-content:space-between;margin-bottom:5px}
+.roi-lbl{font-size:10px;color:var(--tx3)}
+.roi-pct{font-size:13px;font-weight:700;color:var(--pos);font-family:var(--fm)}
+.roi-pct.neu{color:var(--y)}
+.roi-track-lg{height:6px;background:var(--b1);border-radius:3px;overflow:hidden}
+.roi-fill-lg{height:100%;border-radius:3px;background:var(--pos);transition:width .8s ease}
+.roi-fill-lg.neu{background:var(--y)}
+
+/* Desembolsos */
+.desemb-list{margin-top:14px;border-top:1px solid var(--b1);padding-top:12px}
+.desemb-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);margin-bottom:8px}
+.desemb-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--b1);gap:10px}
+.desemb-row:last-child{border-bottom:none}
+.desemb-date{font-size:11px;color:var(--tx3);flex-shrink:0}
+.desemb-label{font-size:12px;color:var(--tx2);flex:1}
+.desemb-monto{font-size:13px;font-weight:700;font-family:var(--fm);color:var(--y)}
+
+/* Empty state */
+.empty{text-align:center;padding:60px 20px;color:var(--tx3)}
+.empty h3{font-size:16px;margin-bottom:8px;color:var(--tx2)}
+.empty p{font-size:13px;line-height:1.6}
+
+/* Error screen */
+.error-wrap{padding:60px 24px;text-align:center;max-width:360px;margin:0 auto}
+.error-icon{font-size:40px;margin-bottom:16px}
+.error-wrap h2{font-size:20px;font-weight:700;color:var(--neg);margin-bottom:8px}
+.error-wrap p{font-size:14px;color:var(--tx2);line-height:1.6}
+
+/* Footer */
+.portal-footer{padding:28px 20px;border-top:1px solid var(--b1);text-align:center;color:var(--tx3);font-size:11px;line-height:1.8}
+
+/* Disclaimer */
+.disclaimer{background:var(--yd);border:1px solid var(--yb);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--tx2);line-height:1.6;margin-top:24px}
+.disclaimer strong{color:var(--y)}
+
+/* Animations */
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.proj-card{animation:fadeIn .3s ease both}
+.proj-card:nth-child(2){animation-delay:.06s}
+.proj-card:nth-child(3){animation-delay:.12s}
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader">
+  <div class="logo-big">KLY</div>
+  <div class="spin"></div>
+</div>
+
+<!-- PANTALLA: PIN LOGIN -->
+<div class="sc" id="sc-pin">
+  <div class="pin-wrap">
+    <div class="pin-header">
+      <div class="kly-mark">KLY</div>
+      <h2>Portal de Inversores</h2>
+      <p>Bienvenido/a, <span class="inv-name" id="pin-name">Inversor</span>.<br>Ingresá tu PIN de 4 dígitos para acceder.</p>
+    </div>
+    <div class="dots" id="pin-dots">
+      <div class="dot" id="d0"></div><div class="dot" id="d1"></div>
+      <div class="dot" id="d2"></div><div class="dot" id="d3"></div>
+    </div>
+    <div class="numpad">
+      <div class="nk" onclick="pk(1)">1</div><div class="nk" onclick="pk(2)">2</div><div class="nk" onclick="pk(3)">3</div>
+      <div class="nk" onclick="pk(4)">4</div><div class="nk" onclick="pk(5)">5</div><div class="nk" onclick="pk(6)">6</div>
+      <div class="nk" onclick="pk(7)">7</div><div class="nk" onclick="pk(8)">8</div><div class="nk" onclick="pk(9)">9</div>
+      <div class="nk inv"></div><div class="nk" onclick="pk(0)">0</div><div class="nk sm" onclick="pdel()">⌫</div>
+    </div>
+    <div class="pin-err" id="perr"></div>
+  </div>
+</div>
+
+<!-- PANTALLA: CREAR PIN -->
+<div class="sc" id="sc-setpin">
+  <div class="pin-wrap">
+    <div class="pin-header">
+      <div class="kly-mark">KLY</div>
+      <h2 id="setpin-title">Creá tu PIN</h2>
+      <p id="setpin-sub">Elegí 4 dígitos para proteger tu acceso. Lo vas a usar cada vez que ingreses.</p>
+    </div>
+    <div class="steps-dots" id="step-dots">
+      <div class="sdot on" id="st0"></div><div class="sdot" id="st1"></div>
+    </div>
+    <div class="dots" id="sp-dots">
+      <div class="dot" id="sd0"></div><div class="dot" id="sd1"></div>
+      <div class="dot" id="sd2"></div><div class="dot" id="sd3"></div>
+    </div>
+    <div class="numpad">
+      <div class="nk" onclick="spk(1)">1</div><div class="nk" onclick="spk(2)">2</div><div class="nk" onclick="spk(3)">3</div>
+      <div class="nk" onclick="spk(4)">4</div><div class="nk" onclick="spk(5)">5</div><div class="nk" onclick="spk(6)">6</div>
+      <div class="nk" onclick="spk(7)">7</div><div class="nk" onclick="spk(8)">8</div><div class="nk" onclick="spk(9)">9</div>
+      <div class="nk inv"></div><div class="nk" onclick="spk(0)">0</div><div class="nk sm" onclick="spdel()">⌫</div>
+    </div>
+    <div class="pin-err" id="sperr"></div>
+  </div>
+</div>
+
+<!-- PANTALLA: PORTAL PRINCIPAL -->
+<div class="sc" id="sc-portal">
+
+  <div class="portal-header">
+    <div class="ph-brand">
+      <div class="ph-logo">KLY</div>
+      <div>
+        <div class="ph-title">KLY Flipping</div>
+        <div class="ph-sub">Portal de Inversores</div>
+      </div>
+    </div>
+    <div class="ph-right">
+      <div class="ph-inv">
+        <div class="ph-inv-name" id="ph-name"></div>
+        <div class="ph-inv-code" id="ph-code"></div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Salir</button>
+    </div>
+  </div>
+
+  <div class="portal-body">
+
+    <!-- KPIs resumen -->
+    <div class="sec-label">Resumen de tu portfolio</div>
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi"><div class="spin" style="margin:4px auto"></div></div>
+    </div>
+
+    <!-- Proyectos -->
+    <div class="sec-label" style="margin-top:28px">Mis inversiones</div>
+    <div id="inv-list">
+      <div class="empty"><div class="spin" style="margin:0 auto 12px"></div><p>Cargando...</p></div>
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+      <strong>Nota:</strong> Los valores de ganancia y ROI mostrados son <strong>estimaciones</strong> basadas en el precio de venta objetivo. Los retornos reales pueden variar. Las fechas son proyecciones sujetas a cambios operativos.
+    </div>
+  </div>
+
+  <div class="portal-footer">
+    KLY Flipping · 11 de Septiembre de 1888 al 3860, Piso 2B · Núñez, Buenos Aires<br>
+    klyarquitectura@gmail.com · Información confidencial exclusiva para inversores habilitados
+  </div>
+</div>
+
+<script>
+const SUPA_URL = 'https://yvkjjenvdabuaabexngj.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2a2pqZW52ZGFidWFhYmV4bmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM2MzYzNTYsImV4cCI6MjA1OTIxMjM1Nn0.NxXsNcDNlpaaK7bBqFMHqXBm0VDwegn2Fh7ly3TZZCE';
+const SB = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+const $ = id => document.getElementById(id);
+const fU = v => (!v && v !== 0) ? '—' : 'U$D ' + Math.round(v).toLocaleString('es-AR');
+const fP = v => (!v && v !== 0) ? '—' : (Math.round(v * 10) / 10) + '%';
+const fD = s => { if (!s) return '—'; const d = new Date(s + 'T00:00:00'); return d.toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' }); };
+
+let TOKEN = null, INV = null;
+let pinBuf = '', spBuf = '', spFirst = '', spStep = 0;
+
+const updDots = (pfx, n, errored) => {
+  [0,1,2,3].forEach(i => {
+    const el = $(pfx+i);
+    el.classList.toggle('on', i < n);
+    el.classList.toggle('err', errored && i < n);
+  });
+};
+
+const show = id => {
+  document.querySelectorAll('.sc').forEach(s => s.classList.remove('on'));
+  $(id).classList.add('on');
+  $('loader').style.display = 'none';
+};
+
+const setLoading = on => { $('loader').style.display = on ? 'flex' : 'none'; };
+
+async function hashPin(pin) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin + ':' + TOKEN));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  TOKEN = new URLSearchParams(location.search).get('t');
+
+  if (!TOKEN) {
+    show('sc-pin');
+    $('sc-pin').innerHTML = `<div class="error-wrap"><div class="error-icon">🔗</div><h2>Link inválido</h2><p>Este link no es válido. Usá el link personalizado que recibiste de KLY.</p></div>`;
+    return;
+  }
+
+  const { data, error } = await SB
+    .from('inversores')
+    .select('id, id_unico, nombre, email, portal_pin, portal_activo')
+    .eq('portal_token', TOKEN)
+    .single();
+
+  if (error || !data) {
+    show('sc-pin');
+    $('sc-pin').innerHTML = `<div class="error-wrap"><div class="error-icon">🔒</div><h2>Acceso no habilitado</h2><p>Este link no está habilitado o expiró. Contactá a KLY para obtener acceso.</p></div>`;
+    return;
+  }
+
+  INV = data;
+  $('pin-name').textContent = data.nombre.split(' ')[0];
+
+  if (!data.portal_pin || !data.portal_activo) {
+    show('sc-setpin');
+  } else {
+    show('sc-pin');
+  }
+});
+
+// ── PIN LOGIN ─────────────────────────────────────────────────────────────────
+function pk(n) {
+  if (pinBuf.length >= 4) return;
+  pinBuf += n;
+  updDots('d', pinBuf.length, false);
+  if (pinBuf.length === 4) setTimeout(doLogin, 150);
+}
+
+function pdel() {
+  pinBuf = pinBuf.slice(0, -1);
+  updDots('d', pinBuf.length, false);
+  $('perr').classList.remove('on');
+}
+
+async function doLogin() {
+  const h = await hashPin(pinBuf);
+  if (h !== INV.portal_pin) {
+    updDots('d', 4, true);
+    $('perr').textContent = 'PIN incorrecto. Intentá de nuevo.';
+    $('perr').classList.add('on');
+    setTimeout(() => { pinBuf = ''; updDots('d', 0, false); }, 600);
+    return;
+  }
+  $('perr').classList.remove('on');
+  setLoading(true);
+  await SB.from('inversores').update({ ultimo_acceso: new Date().toISOString() }).eq('portal_token', TOKEN);
+  await loadPortal();
+}
+
+// ── CREAR PIN ─────────────────────────────────────────────────────────────────
+function spk(n) {
+  if (spBuf.length >= 4) return;
+  spBuf += n;
+  updDots('sd', spBuf.length, false);
+  if (spBuf.length === 4) setTimeout(confirmSP, 150);
+}
+
+function spdel() {
+  spBuf = spBuf.slice(0, -1);
+  updDots('sd', spBuf.length, false);
+  $('sperr').classList.remove('on');
+}
+
+async function confirmSP() {
+  if (spStep === 0) {
+    spFirst = spBuf; spBuf = ''; spStep = 1;
+    updDots('sd', 0, false);
+    $('setpin-sub').textContent = 'Confirmá tu PIN ingresándolo nuevamente.';
+    $('st0').classList.remove('on'); $('st1').classList.add('on');
+  } else {
+    if (spBuf !== spFirst) {
+      updDots('sd', 4, true);
+      $('sperr').textContent = 'Los PINs no coinciden. Empezá de nuevo.';
+      $('sperr').classList.add('on');
+      setTimeout(() => {
+        spBuf = ''; spFirst = ''; spStep = 0;
+        updDots('sd', 0, false);
+        $('st0').classList.add('on'); $('st1').classList.remove('on');
+        $('setpin-sub').textContent = 'Elegí 4 dígitos para proteger tu acceso.';
+      }, 800);
+      return;
+    }
+    const h = await hashPin(spBuf);
+    setLoading(true);
+    const { error } = await SB.from('inversores').update({
+      portal_pin: h, portal_activo: true,
+      ultimo_acceso: new Date().toISOString()
+    }).eq('portal_token', TOKEN);
+    if (error) { $('sperr').textContent = 'Error al guardar. Intentá de nuevo.'; $('sperr').classList.add('on'); setLoading(false); return; }
+    INV.portal_pin = h;
+    await loadPortal();
+  }
+}
+
+// ── LOAD PORTAL DATA ──────────────────────────────────────────────────────────
+async function loadPortal() {
+  setLoading(true);
+
+  // Load from v_portal_inversor view
+  const { data, error } = await SB
+    .from('v_portal_inversor')
+    .select('*')
+    .eq('portal_token', TOKEN)
+    .single();
+
+  setLoading(false);
+
+  if (error || !data) {
+    show('sc-portal');
+    $('inv-list').innerHTML = `<div class="empty"><h3>Error cargando datos</h3><p>No se pudieron cargar tus inversiones. Contactá a KLY.</p></div>`;
+    return;
+  }
+
+  show('sc-portal');
+
+  const invs = data.inversiones || [];
+  const tI = data.total_invertido_usd || 0;
+  const tG = data.total_ganancia_estimada_usd || 0;
+  const tR = tI + tG;
+  const roi = tI > 0 ? tG / tI * 100 : 0;
+
+  // Header
+  $('ph-name').textContent = data.nombre;
+  $('ph-code').textContent = data.id_unico;
+
+  // KPIs
+  const activos = invs.filter(i => !['vendido','cancelado'].includes(i.proyecto_estado)).length;
+  const vendidos = invs.filter(i => i.proyecto_estado === 'vendido').length;
+
+  $('kpi-grid').innerHTML = `
+    <div class="kpi kpi-hero">
+      <div class="kpi-label">Retorno total estimado</div>
+      <div class="kpi-val y">${fU(tR)}</div>
+      <div class="kpi-sub">${fU(tI)} invertido · ${fU(tG)} de ganancia estimada</div>
+      <div class="roi-track"><div class="roi-fill g" id="roi-bar" style="width:0%"></div></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Capital invertido</div>
+      <div class="kpi-val">${fU(tI)}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Ganancia estimada</div>
+      <div class="kpi-val g">${fU(tG)}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">ROI promedio</div>
+      <div class="kpi-val ${roi >= 0 ? 'g' : ''}">${fP(roi)}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Proyectos</div>
+      <div class="kpi-val">${invs.length}</div>
+      <div class="kpi-sub">${activos} activo${activos !== 1 ? 's' : ''} · ${vendidos} vendido${vendidos !== 1 ? 's' : ''}</div>
+    </div>
+  `;
+
+  // Animate ROI bar
+  setTimeout(() => {
+    const el = document.getElementById('roi-bar');
+    if (el) el.style.width = Math.min(100, Math.max(0, roi)) + '%';
+  }, 200);
+
+  // Investments list
+  if (!invs.length) {
+    $('inv-list').innerHTML = `<div class="empty"><h3>Sin inversiones registradas</h3><p>Tus inversiones aparecerán aquí una vez que KLY las registre en el sistema.</p></div>`;
+    return;
+  }
+
+  const badgeClass = est => {
+    if (est === 'vendido') return 'badge-vendido';
+    if (['activo','en_obra','comprado'].includes(est)) return 'badge-activo';
+    if (est === 'cancelado') return 'badge-cancelado';
+    return 'badge-activo';
+  };
+  const badgeLabel = { vendido:'Vendido', activo:'Activo', en_obra:'En obra', comprado:'Comprado', cancelado:'Cancelado' };
+
+  $('inv-list').innerHTML = invs.map(inv => {
+    const g = inv.ganancia_estimada || 0;
+    const r = inv.roi_pct || 0;
+    const cap = inv.monto_usd || 0;
+    const retorno = cap + g;
+    const est = inv.proyecto_estado || '';
+    const rColor = r >= 0 ? 'g' : '';
+    const rFillClass = r >= 20 ? '' : 'neu';
+    const rWidth = Math.min(100, Math.max(0, r / 50 * 100));
+
+    // Desembolsos
+    const desemb = inv.desembolsos_json ? (typeof inv.desembolsos_json === 'string' ? JSON.parse(inv.desembolsos_json) : inv.desembolsos_json) : [];
+    const desembHTML = desemb.length > 0 ? `
+      <div class="desemb-list">
+        <div class="desemb-title">Desembolsos</div>
+        ${desemb.map(d => `
+          <div class="desemb-row">
+            <div class="desemb-date">${fD(d.f || d.fecha)}</div>
+            <div class="desemb-label">${d.l || d.etapa || 'Desembolso'}</div>
+            <div class="desemb-monto">${fU(d.m || d.monto)}</div>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+
+    return `
+    <div class="proj-card">
+      <div class="proj-card-head">
+        <div>
+          <div class="proj-name">${inv.proyecto_nombre || '—'}</div>
+          <div class="proj-dir">${inv.proyecto_dir || ''}</div>
+        </div>
+        <div class="proj-badge ${badgeClass(est)}">${badgeLabel[est] || est}</div>
+      </div>
+      <div class="proj-card-body">
+        <div class="proj-grid">
+          <div class="proj-stat">
+            <div class="ps-label">Capital</div>
+            <div class="ps-val y">${fU(cap)}</div>
+          </div>
+          <div class="proj-stat">
+            <div class="ps-label">Participación</div>
+            <div class="ps-val">${inv.participacion_pct ? fP(inv.participacion_pct) : '—'}</div>
+          </div>
+          <div class="proj-stat">
+            <div class="ps-label">Ganancia est.</div>
+            <div class="ps-val g">${fU(g)}</div>
+          </div>
+          <div class="proj-stat">
+            <div class="ps-label">Retorno total</div>
+            <div class="ps-val">${fU(retorno)}</div>
+          </div>
+        </div>
+
+        <div class="proj-roi-bar">
+          <div class="roi-labels">
+            <span class="roi-lbl">ROI estimado del proyecto</span>
+            <span class="roi-pct ${rColor || 'neu'}">${fP(r)}</span>
+          </div>
+          <div class="roi-track-lg">
+            <div class="roi-fill-lg ${rFillClass}" style="width:${rWidth}%"></div>
+          </div>
+        </div>
+
+        ${desembHTML}
+      </div>
+      <div class="proj-card-foot">
+        ${inv.fecha_entrada ? `<div class="foot-item">Entrada: <span>${fD(inv.fecha_entrada)}</span></div>` : ''}
+        ${inv.fecha_venta_estimada || inv.proyecto_fecha_venta ? `<div class="foot-item">Venta est.: <span>${fD(inv.fecha_venta_estimada || inv.proyecto_fecha_venta)}</span></div>` : ''}
+        ${inv.proyecto_estado === 'vendido' && inv.fecha_salida ? `<div class="foot-item">Vendido: <span>${fD(inv.fecha_salida)}</span></div>` : ''}
+        <div class="foot-item">Código: <span>${inv.id_unico_inv || data.id_unico}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Animate ROI bars
+  setTimeout(() => {
+    document.querySelectorAll('.roi-fill-lg').forEach(el => {
+      const w = el.style.width;
+      el.style.width = '0%';
+      setTimeout(() => { el.style.width = w; }, 50);
+    });
+  }, 100);
+}
+
+function logout() {
+  pinBuf = '';
+  updDots('d', 0, false);
+  $('perr').classList.remove('on');
+  show('sc-pin');
+}
+</script>
+</body>
+</html>
