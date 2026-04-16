@@ -1850,211 +1850,252 @@ function rPVt(pf) {
 //
 // HELPER ? Distribuci?n de ganancias con 3 modos
 //
-function calcDistribucion(pf, modoOverride) {
+function calcDistribucion(pf) {
+  const invTotal    = pf.inversion_total_usd || 0;
   const utilidad    = pf.utilidad_usd || 0;
-  const roi         = pf.roi_pct || 0;
-  const invs        = S.inversionesDetalle.filter(i => i.proyecto_id === pf.proyecto_id);
-  const totalInv    = invs.reduce((s, i) => s + (i.capital_invertido || 0), 0);
-  const hasInv      = invs.length > 0 && totalInv > 0;
+  const roiTotal    = invTotal > 0 ? utilidad / invTotal * 100 : 0;
 
-  // Modo guardado en proyecto (campo dist_modo) o override
-  const modo = modoOverride || pf.dist_modo || (hasInv ? 'auto' : 'fixed');
+  // Inversores asignados al proyecto
+  const invs = S.inversionesDetalle.filter(i => i.proyecto_id === pf.proyecto_id);
+  const capitalExternos = invs.reduce((s,i) => s + (i.capital_invertido||0), 0);
 
-  let pctInv = pf.dist_inv_pct || 0;
-  let pctKLY = pf.dist_kly_pct || 100;
-  let tramoLabel = null;
-  let poolInv = 0;
+  // KLY puede haber puesto capital propio
+  const capitalKLY  = parseFloat(pf.capital_kly_usd)||0;
+  const totalCapital = capitalExternos + capitalKLY;
+  const hasInv      = invs.length > 0 && capitalExternos > 0;
 
-  if (!hasInv) {
-    // Sin inversores ? 100% KLY
-    poolInv  = 0;
-    pctInv   = 0;
-    pctKLY   = 100;
-  } else if (modo === 'fixed_amount') {
-    // Monto fijo
-    poolInv  = Math.min(pf.profit_investors_usd || 0, utilidad);
-    pctInv   = utilidad > 0 ? poolInv / utilidad * 100 : 0;
-    pctKLY   = 100 - pctInv;
-  } else if (modo === 'fixed_pct') {
-    // Porcentaje fijo
-    pctInv   = Math.min(pf.dist_inv_pct || 0, 100);
-    pctKLY   = 100 - pctInv;
-    poolInv  = utilidad * pctInv / 100;
-  } else {
-    // AUTO por ROI ? usa tramos del proyecto primero, si no los globales
-    const tramosProyecto = pf.tramos_roi_json ? JSON.parse(pf.tramos_roi_json) : null;
-    const tramos = (tramosProyecto || S.cfg.tramos_roi || []).slice().sort((a, b) => a.roi_min - b.roi_min);
-    let tramo = tramos.length ? tramos[tramos.length - 1] : { inv_pct: 50, kly_pct: 50 };
-    for (const t of tramos) {
-      if (roi >= t.roi_min && roi < t.roi_max) { tramo = t; break; }
-    }
-    pctInv     = tramo.inv_pct;
-    pctKLY     = tramo.kly_pct;
-    poolInv    = utilidad * pctInv / 100;
-    const tramosOrigen = tramosProyecto ? 'este proyecto' : 'configuracion global';
-    tramoLabel = `ROI ${Math.round(roi)}% → Inversores ${pctInv}% / KLY ${pctKLY}% (${tramosOrigen})`;
-  }
+  // ROI que se le da a inversores (guardado en proyecto)
+  // Si no hay inversores → 0. Si hay → default = roiTotal (se puede editar)
+  const roiInv = hasInv
+    ? Math.min(parseFloat(pf.roi_inversores_pct) || 0, roiTotal)
+    : 0;
 
-  // Ganancia KLY
-  const ganKLY = utilidad - poolInv;
+  // ROI que retiene KLY como desarrollador
+  const roiKLYdev = roiTotal - roiInv;
 
-  // Ganancia por inversor (proporcional a capital)
+  // Ganancia total a pagar a inversores (externos + KLY si puso capital)
+  // = capital * roiInv (el ROI es sobre la inversión, no sobre la ganancia)
+  const gananciaInversores = totalCapital * roiInv / 100;
+
+  // Ganancia KLY como desarrollador (el spread de ROI sobre el total invertido)
+  const gananciaKLYdev  = invTotal * roiKLYdev / 100;
+
+  // Ganancia KLY como inversor (si aportó capital)
+  const partKLYpct      = totalCapital > 0 ? capitalKLY / totalCapital * 100 : 0;
+  const gananciaKLYinv  = capitalKLY * roiInv / 100;
+
+  // Ganancia KLY total
+  const gananciaKLYtotal = gananciaKLYdev + gananciaKLYinv;
+
+  // Detalle por inversor externo
   const invDetalle = invs.map(iv => {
-    const participacion = totalInv > 0 ? (iv.capital_invertido || 0) / totalInv : 0;
-    const ganancia      = poolInv * participacion;
-    const retorno       = (iv.capital_invertido || 0) + ganancia;
-    const roiInv        = (iv.capital_invertido || 0) > 0 ? ganancia / iv.capital_invertido * 100 : 0;
-    return { ...iv, participacion_calc: participacion * 100, ganancia_calc: ganancia, retorno_calc: retorno, roi_calc: roiInv };
+    const cap    = iv.capital_invertido || 0;
+    const pct    = totalCapital > 0 ? cap / totalCapital * 100 : 0;
+    const gan    = cap * roiInv / 100;
+    const ret    = cap + gan;
+    const roiInd = roiInv;
+    return { ...iv, participacion_calc: pct, ganancia_calc: gan, retorno_calc: ret, roi_calc: roiInd };
   });
 
-  return { modo, utilidad, roi, pctInv, pctKLY, poolInv, ganKLY, tramoLabel, invDetalle, totalInv, hasInv };
+  return {
+    roiTotal, roiInv, roiKLYdev,
+    invTotal, capitalExternos, capitalKLY, totalCapital,
+    utilidad, hasInv,
+    gananciaInversores, gananciaKLYdev, gananciaKLYinv, gananciaKLYtotal,
+    partKLYpct, invDetalle,
+    // Legacy compat
+    poolInv: gananciaInversores, ganKLY: gananciaKLYtotal,
+    pctInv: totalCapital > 0 ? gananciaInversores / Math.max(utilidad,1) * 100 : 0,
+    pctKLY: totalCapital > 0 ? gananciaKLYtotal / Math.max(utilidad,1) * 100 : 100,
+    modo: 'roi', tramoLabel: null,
+  };
 }
 
-function rPIn(pf) {
-  const pid  = pf.proyecto_id;
-  const dist = calcDistribucion(pf);
-  const { utilidad, roi, pctInv, pctKLY, poolInv, ganKLY, tramoLabel, invDetalle, totalInv, modo } = dist;
 
-  const modoLabels = { auto: 'Automatico por ROI', fixed_pct: '% Fijo', fixed_amount: 'Monto fijo' };
+function rPIn(pf) {
+  const pid = pf.proyecto_id;
+  const d   = calcDistribucion(pf);
+  const {
+    roiTotal, roiInv, roiKLYdev,
+    invTotal, capitalExternos, capitalKLY, totalCapital,
+    utilidad, hasInv,
+    gananciaInversores, gananciaKLYdev, gananciaKLYinv, gananciaKLYtotal,
+    partKLYpct, invDetalle
+  } = d;
+
+  // Si no hay inversores → pantalla simple
+  if (!hasInv) {
+    return `<div class="card mb12">
+      <div class="sh mb12">
+        <div class="st">Inversores — ${pf.nombre}</div>
+        <button class="btn bp bs" onclick="openNInv('${pid}')">+ Asignar inversor</button>
+      </div>
+      <div style="background:var(--s2);border-radius:var(--r);padding:20px;text-align:center;margin-bottom:14px">
+        <div style="font-size:28px;font-weight:800;color:var(--acc2)">${fU(utilidad)}</div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:4px">100% ganancia KLY · ROI ${f2(roiTotal)}%</div>
+      </div>
+      <div class="empty" style="padding:16px"><h3>Sin inversores externos</h3>
+        <p>KLY financia el 100% del proyecto y retiene toda la ganancia.</p></div>
+    </div>`;
+  }
+
+  // Con inversores
+  const roiInvVal  = roiInv;
+  const roiKLYVal  = f2(roiKLYdev);
+  const roiTotVal  = f2(roiTotal);
+  const roiWarn    = roiInv > roiTotal;
 
   return `<div class="card mb12">
     <div class="sh mb12">
       <div class="st">Inversores — ${pf.nombre}</div>
       <div style="display:flex;gap:6px">
         <button class="btn bp bs" onclick="openNInv('${pid}')">+ Asignar</button>
-        ${pf.estado === 'vendido' && invDetalle.length ? `<button class="btn bv bs" onclick="abrirLiquidacion('${pid}')">💰 Liquidar</button>` : ''}
+        ${pf.estado === 'vendido' && invDetalle.length
+          ? `<button class="btn bv bs" onclick="abrirLiquidacion('${pid}')">💸 Liquidar</button>`
+          : ''}
       </div>
     </div>
 
-    <!-- SELECTOR DE MODO -->
+    <!-- ROI EDITOR -->
     <div style="background:var(--s2);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
-      <div class="cl" style="margin-bottom:10px">Modo de distribución</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-        ${['auto','fixed_pct','fixed_amount'].map(m => `
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;padding:6px 12px;border-radius:var(--r);border:1px solid ${modo===m?'var(--acc)':'var(--b1)'};background:${modo===m?'rgba(245,208,32,.08)':'transparent'}">
-            <input type="radio" name="dist_modo_${pid}" value="${m}" ${modo===m?'checked':''} onchange="cambiarModoDistrib('${pid}','${m}')" style="accent-color:var(--acc)">
-            ${modoLabels[m]}
-          </label>`).join('')}
-      </div>
-
-      ${modo === 'fixed_pct' ? `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <label style="font-size:11px;color:var(--tx2);min-width:120px">% para inversores:</label>
-        <input type="number" min="0" max="100" step="1" value="${Math.round(pctInv)}"
-          style="width:70px;background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:5px 8px;color:var(--acc);font-family:var(--fm);font-size:13px"
-          onchange="cambiarPctInv('${pid}', this.value)">
-        <span style="font-size:11px;color:var(--tx3)">→ KLY: <strong style="color:var(--acc2)">${Math.round(100-pctInv)}%</strong></span>
-      </div>` : ''}
-
-      ${modo === 'fixed_amount' ? `
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <label style="font-size:11px;color:var(--tx2);min-width:120px">Monto inversores:</label>
-        <input type="number" min="0" step="100" value="${Math.round(poolInv)}"
-          style="width:130px;background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:5px 8px;color:var(--acc);font-family:var(--fm);font-size:13px"
-          onchange="cambiarMontoInv('${pid}', this.value)">
-        <span style="font-size:10px;color:var(--tx3)">USD</span>
-      </div>` : ''}
-
-      ${modo === 'auto' ? `
-      <!-- EDITOR DE TRAMOS POR PROYECTO -->
-      <div style="margin-top:4px">
-        ${tramoLabel ? `<div style="font-size:10px;padding:5px 10px;background:rgba(245,208,32,.06);border-radius:var(--r);color:var(--acc);margin-bottom:10px">▸ ${tramoLabel}</div>` : ''}
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Tramos de este proyecto</span>
-          <button class="btn bg bx" onclick="addTramoProyecto('${pid}')">+ Tramo</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+        <div style="background:var(--s3);border-radius:8px;padding:10px 12px">
+          <div class="cl" style="margin-bottom:4px">ROI total proyecto</div>
+          <div style="font-family:var(--fm);font-size:18px;font-weight:800;color:var(--acc2)">${roiTotVal}%</div>
+          <div style="font-size:9px;color:var(--tx3)">${fU(utilidad)} ganancia</div>
         </div>
-        <div class="tw">
-          <table style="font-size:11px">
-            <thead><tr>
-              <th>ROI min %</th><th>ROI max %</th>
-              <th>% Inversores</th><th>% KLY</th><th></th>
-            </tr></thead>
-            <tbody>
-              ${(pf.tramos_roi_json ? JSON.parse(pf.tramos_roi_json) : S.cfg.tramos_roi || []).map((t, i) => `
-              <tr>
-                <td><input type="number" value="${t.roi_min}" min="0" step="1"
-                  style="width:60px;background:var(--s1);border:1px solid var(--b1);border-radius:4px;padding:3px 6px;color:var(--tx);font-size:10px"
-                  onchange="editTramoProyecto('${pid}',${i},'roi_min',this.value)"></td>
-                <td><input type="number" value="${t.roi_max >= 999 ? '' : t.roi_max}" placeholder="∞" min="0" step="1"
-                  style="width:60px;background:var(--s1);border:1px solid var(--b1);border-radius:4px;padding:3px 6px;color:var(--tx);font-size:10px"
-                  onchange="editTramoProyecto('${pid}',${i},'roi_max',this.value)"></td>
-                <td>
-                  <div style="display:flex;align-items:center;gap:4px">
-                    <input type="number" value="${t.inv_pct}" min="0" max="100" step="1"
-                      style="width:52px;background:var(--s1);border:1px solid var(--b1);border-radius:4px;padding:3px 6px;color:var(--acc);font-size:10px"
-                      onchange="editTramoProyecto('${pid}',${i},'inv_pct',this.value)">
-                    <span style="color:var(--tx3)">%</span>
-                  </div>
-                </td>
-                <td style="color:var(--acc2);font-family:var(--fm)">${t.kly_pct}%</td>
-                <td><button class="btn bd bx" onclick="delTramoProyecto('${pid}',${i})">✕</button></td>
-              </tr>`).join('')}
-            </tbody>
-          </table>
+        <div style="background:var(--s3);border-radius:8px;padding:10px 12px;border:1px solid var(--yb)">
+          <div class="cl" style="margin-bottom:4px">ROI a inversores</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" min="0" max="${Math.ceil(roiTotal)+1}" step="0.1"
+              value="${f2(roiInvVal)}"
+              style="width:72px;background:var(--s1);border:1px solid ${roiWarn?'var(--neg)':'var(--b2)'};border-radius:6px;padding:4px 8px;font-size:16px;font-weight:800;color:var(--acc);font-family:var(--fm)"
+              oninput="previewROI('${pid}', this.value)"
+              onchange="guardarROIInversores('${pid}', this.value)">
+            <span style="font-size:14px;color:var(--tx2)">%</span>
+          </div>
+          ${roiWarn ? `<div style="font-size:9px;color:var(--neg);margin-top:3px">⚠ No puede superar el ROI total</div>` : ''}
         </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-          <button class="btn bg bx" onclick="resetTramosProyecto('${pid}')" style="font-size:9px">↺ Usar globales</button>
-          <button class="btn bp bs" onclick="saveTramosProyecto('${pid}')">💾 Guardar tramos</button>
+        <div style="background:var(--s3);border-radius:8px;padding:10px 12px">
+          <div class="cl" style="margin-bottom:4px">ROI KLY (spread)</div>
+          <div style="font-family:var(--fm);font-size:18px;font-weight:800;color:var(--acc2)"
+               id="roi-kly-preview-${pid}">${roiKLYVal}%</div>
+          <div style="font-size:9px;color:var(--tx3)">= ${roiTotVal}% − ${f2(roiInvVal)}%</div>
         </div>
-      </div>` : ''}
-    </div>
+      </div>
 
-    <!-- RESUMEN DISTRIBUCIÓN -->
-    <div class="g4 mb12" style="gap:8px">
-      <div style="background:var(--s1);border-radius:var(--r);padding:10px 14px">
-        <div class="cl">Utilidad total</div>
-        <div class="${utilidad>=0?'pos':'neg'}" style="font-family:var(--fm);font-size:15px">${fU(utilidad)}</div>
-        <div class="csub">ROI: ${roi ? Math.round(roi)+'%' : '—'}</div>
-      </div>
-      <div style="background:var(--s1);border-radius:var(--r);padding:10px 14px">
-        <div class="cl">Pool inversores (${Math.round(pctInv)}%)</div>
-        <div class="acc" style="font-family:var(--fm);font-size:15px">${fU(poolInv)}</div>
-        <div class="csub">${invDetalle.length} inversor${invDetalle.length!==1?'es':''}</div>
-      </div>
-      <div style="background:var(--s1);border-radius:var(--r);padding:10px 14px">
-        <div class="cl">Ganancia KLY (${Math.round(pctKLY)}%)</div>
-        <div class="acc2" style="font-family:var(--fm);font-size:15px">${fU(ganKLY)}</div>
-      </div>
-      <div style="background:var(--s1);border-radius:var(--r);padding:10px 14px">
-        <div class="cl">Capital total inv.</div>
-        <div style="font-family:var(--fm);font-size:15px">${fU(totalInv)}</div>
-      </div>
+      ${capitalKLY > 0 ? `
+      <div style="background:rgba(247,216,25,.06);border:1px solid var(--yb);border-radius:7px;padding:8px 12px;font-size:11px;color:var(--tx2);display:flex;justify-content:space-between;align-items:center">
+        <span>KLY como inversor: <b style="color:var(--acc)">${fU(capitalKLY)}</b> aportados (${f2(partKLYpct)}% participación)</span>
+        <span>Ganancia como inv: <b style="color:var(--pos)">${fU(gananciaKLYinv)}</b></span>
+      </div>` : `
+      <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--tx3)">
+        <span>¿KLY aportó capital propio?</span>
+        <input type="number" min="0" step="1000" placeholder="USD aportados"
+          value="${capitalKLY || ''}"
+          style="width:140px;background:var(--s1);border:1px solid var(--b1);border-radius:6px;padding:4px 8px;font-size:12px"
+          onchange="guardarCapitalKLY('${pid}', this.value)">
+      </div>`}
     </div>
 
     <!-- TABLA INVERSORES -->
-    ${invDetalle.length ? `
-    <div class="cl" style="margin-bottom:8px;margin-top:4px">Detalle por inversor</div>
-    <div class="tw">
+    <div class="cl" style="margin-bottom:8px">Detalle por inversor</div>
+    <div class="tw" id="inv-table-${pid}">
       <table>
         <thead><tr>
-          <th>Inversor</th><th>Capital</th><th>Part. %</th>
-          <th>Ganancia</th><th>Retorno</th><th>ROI</th><th></th>
+          <th>Inversor</th>
+          <th>Inversión</th>
+          <th>Participación</th>
+          <th>ROI aplicado</th>
+          <th>Ganancia</th>
+          <th>Retorno total</th>
+          <th></th>
         </tr></thead>
-        <tbody>${invDetalle.map(iv => {
-          const desemb = iv.desembolsos_json || [];
-          return `<tr>
+        <tbody>
+          ${invDetalle.map(iv => `<tr>
             <td>
-              <div class="b">${iv.inversor_nombre} <span style="font-size:9px;color:var(--tx3)">${iv.inversor_codigo}</span></div>
-              ${desemb.length > 1
-                ? `<div style="font-size:9px;color:var(--tx3)">${desemb.map((d,i) => `E${i+1}: ${fU(d.m)}`).join(' · ')}</div>`
-                : `<div style="font-size:9px;color:var(--tx3)">${iv.fecha||'—'}</div>`}
+              <div class="b">${iv.inversor_nombre} <span style="font-size:9px;color:var(--tx3)">${iv.id_unico||''}</span></div>
+              <div style="font-size:9px;color:var(--tx3)">${iv.fecha||'—'}</div>
             </td>
             <td class="m">${fU(iv.capital_invertido)}</td>
-            <td class="m acc">${Math.round(iv.participacion_calc*10)/10}%</td>
-            <td class="m ${iv.ganancia_calc>=0?'pos':'neg'}">${fU(iv.ganancia_calc)}</td>
+            <td class="m acc">${f2(iv.participacion_calc)}%</td>
+            <td class="m" style="color:var(--acc)">${f2(roiInv)}%</td>
+            <td class="m pos">${fU(iv.ganancia_calc)}</td>
             <td class="m">${fU(iv.retorno_calc)}</td>
-            <td>${rpill(iv.roi_calc)}</td>
             <td style="display:flex;gap:3px">
               <button class="btn bg bx" title="Portal" onclick="abrirPortalInversor('${iv.inversor_id||iv.id}')">🔗</button>
               <button class="btn bg bx" onclick="editInv2('${iv.id}')">✎</button>
-              <button class="btn bg bx" onclick="delInv2('${iv.id}')">✕</button>
+              <button class="btn bd bx" onclick="delInv2('${iv.id}')">✕</button>
             </td>
-          </tr>`;
-        }).join('')}</tbody>
+          </tr>`).join('')}
+          ${capitalKLY > 0 ? `<tr style="background:rgba(247,216,25,.04);border-top:1px solid var(--yb)">
+            <td><div class="b" style="color:var(--acc)">KLY Flipping</div><div style="font-size:9px;color:var(--tx3)">como inversor</div></td>
+            <td class="m" style="color:var(--acc)">${fU(capitalKLY)}</td>
+            <td class="m acc">${f2(partKLYpct)}%</td>
+            <td class="m" style="color:var(--acc)">${f2(roiInv)}%</td>
+            <td class="m pos">${fU(gananciaKLYinv)}</td>
+            <td class="m">${fU(capitalKLY + gananciaKLYinv)}</td>
+            <td></td>
+          </tr>` : ''}
+        </tbody>
       </table>
-    </div>` : '<div class="empty"><h3>Sin inversores asignados</h3><p>Usá "+ Asignar" para vincular inversores a este proyecto.</p></div>'}
+    </div>
+
+    <!-- RESUMEN FINAL -->
+    <div style="background:var(--s2);border-radius:var(--r);padding:14px 16px;margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <div class="cl" style="margin-bottom:2px">Total capital invertido</div>
+        <div style="font-family:var(--fm);font-weight:700">${fU(totalCapital)}</div>
+      </div>
+      <div>
+        <div class="cl" style="margin-bottom:2px">Total a pagar a inversores</div>
+        <div style="font-family:var(--fm);font-weight:700;color:var(--acc)">${fU(gananciaInversores)}</div>
+      </div>
+      <div style="border-top:1px solid var(--b1);padding-top:10px">
+        <div class="cl" style="margin-bottom:2px">Ganancia KLY como inversor</div>
+        <div style="font-family:var(--fm);font-weight:700;color:var(--acc2)">${fU(gananciaKLYinv)}</div>
+      </div>
+      <div style="border-top:1px solid var(--b1);padding-top:10px">
+        <div class="cl" style="margin-bottom:2px">Ganancia KLY como desarrollador</div>
+        <div style="font-family:var(--fm);font-weight:700;color:var(--acc2)">${fU(gananciaKLYdev)}</div>
+      </div>
+      <div style="grid-column:1/-1;background:rgba(247,216,25,.06);border:1px solid var(--yb);border-radius:7px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;font-weight:700;color:var(--tx2)">GANANCIA TOTAL KLY</span>
+        <span style="font-family:var(--fm);font-size:20px;font-weight:800;color:var(--acc2)">${fU(gananciaKLYtotal)}</span>
+      </div>
+    </div>
   </div>`;
 }
+
+function previewROI(pid, val) {
+  const pf = S.proyFinanciero.find(p => p.proyecto_id === pid);
+  if (!pf) return;
+  const roiTotal = (pf.inversion_total_usd||0) > 0 ? (pf.utilidad_usd||0) / pf.inversion_total_usd * 100 : 0;
+  const roiInv   = Math.min(parseFloat(val)||0, roiTotal);
+  const roiKLY   = roiTotal - roiInv;
+  const el = document.getElementById('roi-kly-preview-'+pid);
+  if (el) el.textContent = f2(roiKLY) + '%';
+}
+
+async function guardarROIInversores(pid, val) {
+  const pf = S.proyFinanciero.find(p => p.proyecto_id === pid);
+  if (!pf) return;
+  const roiTotal = (pf.inversion_total_usd||0) > 0 ? (pf.utilidad_usd||0) / pf.inversion_total_usd * 100 : 0;
+  const roiInv   = Math.max(0, Math.min(parseFloat(val)||0, roiTotal));
+  const { error } = await SB.from('proyectos').update({ roi_inversores_pct: roiInv }).eq('id', pid);
+  if (error) return toast(error.message, 'er');
+  await loadAll(); renderSubs();
+  toast(`ROI inversores: ${f2(roiInv)}%`);
+}
+
+async function guardarCapitalKLY(pid, val) {
+  const cap = Math.max(0, parseFloat(val)||0);
+  const { error } = await SB.from('proyectos').update({ capital_kly_usd: cap }).eq('id', pid);
+  if (error) return toast(error.message, 'er');
+  await loadAll(); renderSubs();
+  toast(`Capital KLY: ${fU(cap)}`);
+}
+
 
 // ?? TRAMOS POR PROYECTO ??????????????????????????????????????
 function getTramosProyecto(pid) {
