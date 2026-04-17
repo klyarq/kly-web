@@ -444,14 +444,7 @@ select option{background:var(--s2);}
   <!-- Tipo de ganancia -->
   <div style="background:var(--s3);border-radius:var(--r);padding:12px;margin-bottom:10px">
     <div style="font-size:8px;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:9px">Tipo de ganancia</div>
-    <div class="fr" style="margin-bottom:8px">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;text-transform:none;letter-spacing:0;color:var(--tx2)">
-        <input type="radio" name="ivTipoGan" id="ivTG_pct" value="pct" checked onchange="updIvTipo()"> Automático (capital × ROI inversores del proyecto)
-      </label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;text-transform:none;letter-spacing:0;color:var(--tx2)">
-        <input type="radio" name="ivTipoGan" id="ivTG_fija" value="fija" onchange="updIvTipo()"> Ganancia total acordada (monto fijo USD)
-      </label>
-    </div>
+
     <div id="ivCampoPct" class="fg" style="margin:0">
       <label style="font-size:10px;color:var(--tx3)">La ganancia se calcula automáticamente: capital × ROI% configurado en el proyecto. No requiere entrada manual.</label>
     </div>
@@ -6631,12 +6624,7 @@ async function delInvPerfil(id) {
 }
 
 // Toggle campos de ganancia en modal de inversi?n
-function updIvTipo() {
-  const esFija = document.querySelector('input[name="ivTipoGan"]:checked')?.value === 'fija';
-  const cp = $('ivCampoPct'), cf = $('ivCampoFija');
-  if (cp) cp.style.display = esFija ? 'none' : '';
-  if (cf) cf.style.display = esFija ? '' : 'none';
-}
+function updIvTipo() { /* legacy no-op */ }
 
 // INVERSIONES CON ETAPAS
 let ivPid = null, editIvId = null, ivDesemb = [];
@@ -6660,12 +6648,9 @@ function openNInv(pid) {
   ivPid = pid; editIvId = null; ivDesemb = [{ f: td(), m: 0 }];
   const el = $('ivI'); if (!el) return;
   el.innerHTML = S.inversores.map(i => `<option value="${i.id}">${i.nombre} (${i.id_unico})</option>`).join('');
-  sv('ivPct', ''); sv('ivGanFija', ''); sv('ivNO', ''); sv('ivE', 'activo');
-  $('mivt').textContent = 'ASIGNAR INVERSION';
-  // Reset tipo ganancia a pct por defecto
-  const rp = $('ivTG_pct'); if (rp) rp.checked = true;
-  updIvTipo();
-  renderDesemb(); OM('mo-iv');
+  sv('ivGanExtra', ''); sv('ivNO', ''); sv('ivE', 'activo');
+  $('mivt').textContent = 'ASIGNAR INVERSIÓN';
+  renderDesemb(); updGanPreview(); OM('mo-iv');
 }
 function editInv2(id) {
   editIvId = id;
@@ -6690,17 +6675,18 @@ function editInv2(id) {
 async function saveInversion() {
   if (!ivDesemb.length || !ivDesemb[0].m) return toast('Ingresa al menos un desembolso', 'er');
   const montoTotal = ivDesemb.reduce((s, d) => s + (d.m || 0), 0);
-  const tipoGan = document.querySelector('input[name="ivTipoGan"]:checked')?.value || 'pct';
+  const ganExtra = parseFloat(vOf('ivGanExtra')) || null;
   const data = {
-    inversor_id     : vOf('ivI'),
-    proyecto_id     : ivPid,
-    monto_usd       : montoTotal,
-    participacion_pct: tipoGan === 'pct' ? nOf('ivPct') : 0,
-    ganancia_fija_usd: tipoGan === 'fija' ? nOf('ivGanFija') : null,
-    fecha           : ivDesemb[0].f || td(),
-    estado          : vOf('ivE'),
-    notas           : vOf('ivNO') || null,
-    desembolsos_json: ivDesemb
+    inversor_id      : vOf('ivI'),
+    proyecto_id      : ivPid,
+    monto_usd        : montoTotal,
+    participacion_pct: 0,
+    ganancia_fija_usd: null,
+    ganancia_extra_usd: ganExtra,
+    fecha            : ivDesemb[0].f || td(),
+    estado           : vOf('ivE'),
+    notas            : vOf('ivNO') || null,
+    desembolsos_json : ivDesemb
   };
   showLoad();
   const { error } = editIvId
@@ -6708,7 +6694,7 @@ async function saveInversion() {
     : await SB.from('inversiones').insert(data);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  CM('mo-iv'); await loadAll(); render(); toast('Inversion guardada');
+  CM('mo-iv'); await loadAll(); render(); toast('Inversión guardada');
 }
 async function delInv2(id) { if (!confirm('Eliminar?')) return; await SB.from('inversiones').delete().eq('id', id); await loadAll(); render(); }
 
