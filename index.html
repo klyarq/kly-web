@@ -441,18 +441,19 @@ select option{background:var(--s2);}
 <div class="mo" id="mo-iv"><div class="mbox w">
   <div class="mt" id="mivt">ASIGNAR INVERSIÓN</div>
   <div class="fr"><div class="fg"><label>Inversor</label><select id="ivI"></select></div><div class="fg"><label>Estado</label><select id="ivE"><option value="activo">Activo</option><option value="devuelto">Devuelto</option><option value="parcial">Parcial</option></select></div></div>
-  <!-- Tipo de ganancia -->
+  <!-- Ganancia -->
   <div style="background:var(--s3);border-radius:var(--r);padding:12px;margin-bottom:10px">
-    <div style="font-size:8px;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:9px">Tipo de ganancia</div>
-
-    <div id="ivCampoPct" class="fg" style="margin:0">
-      <label style="font-size:10px;color:var(--tx3)">La ganancia se calcula automáticamente: capital × ROI% configurado en el proyecto. No requiere entrada manual.</label>
+    <div style="font-size:8px;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px">Distribución de ganancia</div>
+    <div id="iv-gan-preview" style="font-size:12px;color:var(--tx2);margin-bottom:12px;min-height:20px">
+      —
     </div>
-    <div id="ivCampoFija" style="display:none">
-      <div class="fg" style="margin:0 0 8px"><label>Ganancia total acordada (USD)</label><input type="number" id="ivGanFija" step="1" placeholder="ej. 5000"></div>
-      <div style="font-size:10px;color:var(--tx3);line-height:1.5;padding:6px 8px;background:var(--yd);border-radius:6px">
-        Usá este campo cuando hay un acuerdo especial: por ejemplo ganancia del proyecto + un bonus extra.<br>
-        Este monto reemplaza el cálculo automático por ROI.
+    <div class="fr" style="margin-bottom:0">
+      <div class="fg" style="margin:0">
+        <label>Bonus / ganancia extra (USD)</label>
+        <input type="number" id="ivGanExtra" step="1" min="0" placeholder="0" oninput="updGanPreview()">
+        <div style="font-size:10px;color:var(--tx3);margin-top:4px;line-height:1.5">
+          Se suma a la ganancia automática. Se descuenta de la ganancia de KLY — no afecta el ROI del proyecto.
+        </div>
       </div>
     </div>
   </div>
@@ -1874,12 +1875,14 @@ function calcDistribucion(pf) {
   // ROI que retiene KLY como desarrollador
   const roiKLYdev = roiTotal - roiInv;
 
-  // Ganancia total a pagar a inversores (externos + KLY si puso capital)
-  // = capital * roiInv (el ROI es sobre la inversión, no sobre la ganancia)
-  const gananciaInversores = totalCapital * roiInv / 100;
+  // Ganancia base por ROI
+  const gananciaRoiInversores = totalCapital * roiInv / 100;
+  // Bonus extra de cada inversor (se descuenta de KLY, no afecta ROI)
+  const totalBonus = invs.reduce((s,i) => s + (i.ganancia_extra_usd||0), 0);
+  const gananciaInversores = gananciaRoiInversores + totalBonus;
 
-  // Ganancia KLY como desarrollador (el spread de ROI sobre el total invertido)
-  const gananciaKLYdev  = invTotal * roiKLYdev / 100;
+  // Ganancia KLY como desarrollador (spread de ROI) MENOS los bonus pagados
+  const gananciaKLYdev  = invTotal * roiKLYdev / 100 - totalBonus;
 
   // Ganancia KLY como inversor (si aportó capital)
   const partKLYpct      = totalCapital > 0 ? capitalKLY / totalCapital * 100 : 0;
@@ -1892,10 +1895,12 @@ function calcDistribucion(pf) {
   const invDetalle = invs.map(iv => {
     const cap    = iv.capital_invertido || 0;
     const pct    = totalCapital > 0 ? cap / totalCapital * 100 : 0;
-    const gan    = cap * roiInv / 100;
+    const ganBase = cap * roiInv / 100;
+    const bonus  = iv.ganancia_extra_usd || 0;
+    const gan    = ganBase + bonus;
     const ret    = cap + gan;
     const roiInd = roiInv;
-    return { ...iv, participacion_calc: pct, ganancia_calc: gan, retorno_calc: ret, roi_calc: roiInd };
+    return { ...iv, participacion_calc: pct, ganancia_calc: gan, ganancia_base: ganBase, bonus_usd: bonus, retorno_calc: ret, roi_calc: roiInd };
   });
 
   return {
@@ -2059,6 +2064,7 @@ function rPIn(pf) {
       <div style="border-top:1px solid var(--b1);padding-top:10px">
         <div class="cl" style="margin-bottom:2px">Ganancia KLY como desarrollador</div>
         <div style="font-family:var(--fm);font-weight:700;color:var(--acc2)">${fU(gananciaKLYdev)}</div>
+        ${totalBonus > 0 ? `<div style="font-size:9px;color:var(--tx3);margin-top:2px">Spread ROI ${fU(invTotal * roiKLYdev / 100 + totalBonus)} − bonus inversores ${fU(totalBonus)}</div>` : ''}
       </div>
       <div style="grid-column:1/-1;background:rgba(247,216,25,.06);border:1px solid var(--yb);border-radius:7px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:12px;font-weight:700;color:var(--tx2)">GANANCIA TOTAL KLY</span>
