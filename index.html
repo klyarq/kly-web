@@ -446,14 +446,22 @@ select option{background:var(--s2);}
     <div style="font-size:8px;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:9px">Tipo de ganancia</div>
     <div class="fr" style="margin-bottom:8px">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;text-transform:none;letter-spacing:0;color:var(--tx2)">
-        <input type="radio" name="ivTipoGan" id="ivTG_pct" value="pct" checked onchange="updIvTipo()"> % sobre utilidad neta del proyecto
+        <input type="radio" name="ivTipoGan" id="ivTG_pct" value="pct" checked onchange="updIvTipo()"> Automático (capital × ROI inversores del proyecto)
       </label>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;text-transform:none;letter-spacing:0;color:var(--tx2)">
-        <input type="radio" name="ivTipoGan" id="ivTG_fija" value="fija" onchange="updIvTipo()"> Ganancia fija en USD
+        <input type="radio" name="ivTipoGan" id="ivTG_fija" value="fija" onchange="updIvTipo()"> Ganancia total acordada (monto fijo USD)
       </label>
     </div>
-    <div id="ivCampoPct" class="fg" style="margin:0"><label>% Participación sobre utilidad neta</label><input type="number" id="ivPct" step="0.1" placeholder="ej. 10"></div>
-    <div id="ivCampoFija" class="fg" style="margin:0;display:none"><label>Ganancia fija (USD)</label><input type="number" id="ivGanFija" step="1" placeholder="ej. 5000"></div>
+    <div id="ivCampoPct" class="fg" style="margin:0">
+      <label style="font-size:10px;color:var(--tx3)">La ganancia se calcula automáticamente: capital × ROI% configurado en el proyecto. No requiere entrada manual.</label>
+    </div>
+    <div id="ivCampoFija" style="display:none">
+      <div class="fg" style="margin:0 0 8px"><label>Ganancia total acordada (USD)</label><input type="number" id="ivGanFija" step="1" placeholder="ej. 5000"></div>
+      <div style="font-size:10px;color:var(--tx3);line-height:1.5;padding:6px 8px;background:var(--yd);border-radius:6px">
+        Usá este campo cuando hay un acuerdo especial: por ejemplo ganancia del proyecto + un bonus extra.<br>
+        Este monto reemplaza el cálculo automático por ROI.
+      </div>
+    </div>
   </div>
   <!-- Desembolsos -->
   <div style="background:var(--s3);border-radius:var(--r);padding:12px;margin-bottom:10px">
@@ -4408,13 +4416,16 @@ function rInvPerfil(invId) {
 }
 
 function editInv(id) {
+  // Redirige al modal correcto (mo-i) con los IDs correctos
+  eIid = id;
   const inv = S.inversores.find(i => i.id === id);
   if (!inv) return;
-  eInvId = id;
-  sv('invNom', inv.nombre||''); sv('invEmail', inv.email||'');
-  sv('invTel', inv.telefono||''); sv('invDNI', inv.dni_cuit||'');
-  sv('invDom', inv.domicilio||''); sv('invNot', inv.notas||'');
-  OM('mo-inv');
+  $('mit').textContent = 'EDITAR INVERSOR';
+  sv('iID', inv.id_unico); sv('iN', inv.nombre); sv('iEM', inv.email||'');
+  sv('iTEL', inv.telefono||''); sv('iDNI', inv.dni_cuit||'');
+  sv('iDOM', inv.domicilio||''); sv('iNO', inv.notas||'');
+  const idField = $('iID'); if (idField) idField.readOnly = true;
+  OM('mo-i');
 }
 
 async function delInv(id) {
@@ -6621,10 +6632,10 @@ async function delInvPerfil(id) {
 
 // Toggle campos de ganancia en modal de inversi?n
 function updIvTipo() {
-  const esPct = document.querySelector('input[name="ivTipoGan"]:checked')?.value === 'pct';
+  const esFija = document.querySelector('input[name="ivTipoGan"]:checked')?.value === 'fija';
   const cp = $('ivCampoPct'), cf = $('ivCampoFija');
-  if (cp) cp.style.display = esPct ? '' : 'none';
-  if (cf) cf.style.display = esPct ? 'none' : '';
+  if (cp) cp.style.display = esFija ? 'none' : '';
+  if (cf) cf.style.display = esFija ? '' : 'none';
 }
 
 // INVERSIONES CON ETAPAS
