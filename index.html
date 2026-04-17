@@ -872,7 +872,7 @@ async function loadAll() {
   // Consultas paralelas: vistas SQL + tablas base para selects/forms
   const [vpf, dkpi, alrt, invd, pfcomp, proy, invs, mov, cs, of, rm, rp, usrs] = await Promise.all([
     SB.from('v_proyecto_financiero').select('*').eq('empresa_id', eid),
-    SB.from('v_dashboard_kpis').select('*').eq('empresa_id', eid).single(),
+    SB.from('v_dashboard_kpis').select('*').single(),
     SB.from('v_alertas').select('*').eq('empresa_id', eid).limit(50),
     SB.from('v_inversiones_detalle').select('*').eq('empresa_id', eid),
     SB.from('v_prefact_completa').select('*').eq('empresa_id', eid).order('fecha', { ascending: false }),
@@ -1908,7 +1908,7 @@ function calcDistribucion(pf) {
     invTotal, capitalExternos, capitalKLY, totalCapital,
     utilidad, hasInv,
     gananciaInversores, gananciaKLYdev, gananciaKLYinv, gananciaKLYtotal,
-    partKLYpct, invDetalle,
+    partKLYpct, invDetalle, totalBonus,
     // Legacy compat
     poolInv: gananciaInversores, ganKLY: gananciaKLYtotal,
     pctInv: totalCapital > 0 ? gananciaInversores / Math.max(utilidad,1) * 100 : 0,
@@ -1926,7 +1926,7 @@ function rPIn(pf) {
     invTotal, capitalExternos, capitalKLY, totalCapital,
     utilidad, hasInv,
     gananciaInversores, gananciaKLYdev, gananciaKLYinv, gananciaKLYtotal,
-    partKLYpct, invDetalle
+    partKLYpct, invDetalle, totalBonus
   } = d;
 
   // Si no hay inversores → pantalla simple
