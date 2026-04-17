@@ -4418,9 +4418,50 @@ function editInv(id) {
 }
 
 async function delInv(id) {
-  if (!confirm('Eliminar inversor?')) return;
+  const inv = S.inversores.find(i => i.id === id);
+  if (!inv) return;
+  // Check if has investments
+  const invs = S.inversionesDetalle.filter(i => i.inversor_id === id);
+  if (invs.length > 0) {
+    return toast(`No se puede eliminar: ${inv.nombre} tiene ${invs.length} inversión/es asignada/s. Eliminá las inversiones primero.`, 'er');
+  }
+  // Show confirmation modal with details
+  const html = `
+  <div style="padding:20px">
+    <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--neg);margin-bottom:14px">⚠ Eliminar inversor</div>
+    <div style="background:var(--s2);border-radius:var(--r);padding:12px 14px;margin-bottom:16px">
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">${inv.nombre}</div>
+      <div style="font-size:12px;color:var(--tx2)">${inv.id_unico} · ${inv.email || 'Sin email'}</div>
+      ${inv.telefono ? `<div style="font-size:11px;color:var(--tx3)">${inv.telefono}</div>` : ''}
+    </div>
+    <div style="font-size:12px;color:var(--tx2);margin-bottom:16px;line-height:1.6">
+      Esta acción eliminará al inversor de Supabase. Si fue cargado desde el formulario, 
+      <b>la fila del Google Sheet se marcará como cancelada</b> pero no se borra (queda el historial).
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bd" onclick="confirmarDelInv('${id}')">Sí, eliminar</button>
+      <button class="btn bg" onclick="CM('mo-del-inv')">Cancelar</button>
+    </div>
+  </div>`;
+  let mo = $('mo-del-inv');
+  if (!mo) {
+    mo = document.createElement('div');
+    mo.id = 'mo-del-inv'; mo.className = 'mo';
+    mo.innerHTML = `<div class="moc" style="max-width:440px;width:95%"><div id="mo-del-inv-body"></div></div>`;
+    mo.onclick = e => { if (e.target === mo) CM('mo-del-inv'); };
+    document.body.appendChild(mo);
+  }
+  $('mo-del-inv-body').innerHTML = html;
+  OM('mo-del-inv');
+}
+
+async function confirmarDelInv(id) {
+  CM('mo-del-inv');
+  showLoad();
   await SB.from('inversores').delete().eq('id', id);
-  await loadAll(); render(); toast('Eliminado');
+  hideLoad();
+  await loadAll(); render();
+  toast('Inversor eliminado');
 }
 
 function copyPortalLink(id) {
@@ -6516,13 +6557,55 @@ async function saveInv() {
     notas    : vOf('iNO')  || null
   };
   showLoad();
-  const { error } = eIid
-    ? await SB.from('inversores').update(data).eq('id', eIid)
-    : await SB.from('inversores').insert(data);
+  const esNuevo = !eIid;
+  const { data: result, error } = eIid
+    ? await SB.from('inversores').update(data).eq('id', eIid).select().single()
+    : await SB.from('inversores').insert(data).select().single();
   hideLoad();
   if (error) return toast(error.message, 'er');
-  CM('mo-i'); await loadAll(); render();
-  toast(eIid ? 'Inversor actualizado' : 'Inversor creado');
+  CM('mo-i');
+  await loadAll(); render();
+
+  // Si es nuevo, mostrar resumen con link del portal
+  if (esNuevo && result) {
+    const portalUrl = result.portal_token
+      ? `${location.origin}/kly-portal.html?t=${result.portal_token}`
+      : null;
+    const html = `
+    <div style="padding:20px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--ok);margin-bottom:14px">✓ Inversor creado</div>
+      <div style="background:var(--s2);border-radius:var(--r);padding:12px 14px;margin-bottom:14px">
+        <div style="font-size:15px;font-weight:700;margin-bottom:2px">${result.nombre}</div>
+        <div style="font-size:12px;color:var(--acc);font-weight:700;font-family:var(--fm)">${result.id_unico}</div>
+        ${result.email ? `<div style="font-size:11px;color:var(--tx3);margin-top:2px">${result.email}</div>` : ''}
+      </div>
+      ${portalUrl ? `
+      <div class="cl" style="margin-bottom:6px">Link de portal</div>
+      <div style="background:var(--s1);border-radius:6px;padding:8px 10px;font-size:10px;font-family:var(--fm);word-break:break-all;color:var(--tx2);margin-bottom:10px">${portalUrl}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="btn bp bs" onclick="navigator.clipboard.writeText('${portalUrl}').then(()=>toast('Link copiado'))">📋 Copiar link</button>
+        <button class="btn bg bs" onclick="compartirWhatsApp('${encodeURIComponent(portalUrl)}','${result.nombre.split(' ')[0]}')">WhatsApp</button>
+      </div>` : ''}
+      <div style="font-size:11px;color:var(--tx3);line-height:1.6;border-top:1px solid var(--b1);padding-top:10px">
+        ℹ El inversor fue creado manualmente. La próxima respuesta del Google Form seguirá generando IDs correlativos desde el último existente en Supabase.
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn bg" onclick="CM('mo-inv-created')">Cerrar</button>
+      </div>
+    </div>`;
+    let mo = $('mo-inv-created');
+    if (!mo) {
+      mo = document.createElement('div');
+      mo.id = 'mo-inv-created'; mo.className = 'mo';
+      mo.innerHTML = `<div class="moc" style="max-width:480px;width:95%"><div id="mo-inv-created-body"></div></div>`;
+      mo.onclick = e => { if (e.target === mo) CM('mo-inv-created'); };
+      document.body.appendChild(mo);
+    }
+    $('mo-inv-created-body').innerHTML = html;
+    OM('mo-inv-created');
+  } else {
+    toast(eIid ? 'Inversor actualizado' : 'Inversor creado');
+  }
 }
 
 async function delInvPerfil(id) {
