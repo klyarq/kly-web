@@ -5955,7 +5955,7 @@ function abrirLiquidacion(pid) {
     <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3);margin-bottom:14px">Liquidación — ${pf.nombre}</div>
     <div class="g3 mb14" style="gap:8px;margin-bottom:14px">
       <div class="card" style="padding:10px 14px"><div class="cl">Utilidad total</div><div class="${utilidad>=0?'pos':'neg'}" style="font-family:var(--fm)">${fU(utilidad)}</div></div>
-      <div class="card" style="padding:10px 14px"><div class="cl">Pool inversores (${pctInv}%)</div><div class="acc" style="font-family:var(--fm)">${fU(poolTotal)}</div></div>
+      <div class="card" style="padding:10px 14px"><div class="cl">Ganancia inversores (${f2(roiInvPct)}% ROI)</div><div class="acc" style="font-family:var(--fm)">${fU(poolTotal)}</div></div>
       <div class="card" style="padding:10px 14px"><div class="cl">Total a pagar</div><div class="acc2" style="font-family:var(--fm)">${fU(totalAPagar)}</div></div>
     </div>
     <div class="tw"><table>
@@ -6000,7 +6000,7 @@ function copiarLiquidacion(pid) {
   let txt = `LIQUIDACION — ${pf.nombre}\n`;
   txt += `Fecha: ${new Date().toLocaleDateString('es-AR')}\n`;
   txt += `Utilidad total: ${fU(utilidad)}\n`;
-  txt += `Pool inversores (${pctInv}%): ${fU(poolTotal)}\n\n`;
+  txt += `Ganancia inversores (${f2(roiInvPct)}% ROI): ${fU(poolTotal)}\n\n`;
 
   invs.forEach(iv => {
     const ganancia = iv.ganancia_inversor_usd || 0;
