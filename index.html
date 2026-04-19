@@ -797,14 +797,15 @@ function calcTIR(flujos) {
 
 // ?? DISPLAY HELPERS ??
 function elbl(e) {
+  if (e === 'liquidado') return 'Terminado';
   return { en_analisis: 'En analisis', comprado: 'Comprado', en_obra: 'En obra', a_la_venta: 'A la venta', vendido: 'Vendido' }[e] || e;
 }
 function edot(e) {
-  const m = { vendido: 'sdg', a_la_venta: 'sdy', en_obra: 'sdb', comprado: 'sdb', en_analisis: 'sdgr' };
+  const m = { vendido: 'sdg', a_la_venta: 'sdy', en_obra: 'sdb', comprado: 'sdb', en_analisis: 'sdgr', liquidado: 'sdg' };
   return `<span class="sdot ${m[e] || 'sdgr'}"></span>`;
 }
 function ebadge(e) {
-  const m = { vendido: 'bv', a_la_venta: 'by', en_obra: 'bb', comprado: 'bb', en_analisis: 'bgr' };
+  const m = { vendido: 'bv', a_la_venta: 'by', en_obra: 'bb', comprado: 'bb', en_analisis: 'bgr', liquidado: 'bv' };
   return `<span class="badge ${m[e] || 'bgr'}">${elbl(e)}</span>`;
 }
 function rpill(r) {
@@ -1313,9 +1314,13 @@ function rDash() {
 //
 function rProys() {
   if (spid) return rPDet(spid);
-  const ESTADOS = ['en_analisis','comprado','en_obra','a_la_venta','vendido'];
-  const ELABELS = { en_analisis:'En analisis', comprado:'Comprado', en_obra:'En obra', a_la_venta:'A la venta', vendido:'Vendido' };
-  return `<div>${S.proyFinanciero.map(pf => `
+  const ESTADOS = ['en_analisis','comprado','en_obra','a_la_venta','vendido','liquidado'];
+  const ELABELS = { en_analisis:'En analisis', comprado:'Comprado', en_obra:'En obra', a_la_venta:'A la venta', vendido:'Vendido', liquidado:'Terminado' };
+
+  const activos    = S.proyFinanciero.filter(pf => pf.estado !== 'liquidado');
+  const terminados = S.proyFinanciero.filter(pf => pf.estado === 'liquidado');
+
+  const renderPF = (pf) => `
     <div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);margin-bottom:8px">
       <div style="padding:13px 17px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="go('proy','${pf.proyecto_id}')">
         <div>
@@ -1323,25 +1328,48 @@ function rProys() {
           <div style="font-size:10px;color:var(--tx3)">${pf.direccion || ''} · ${pf.tipo}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
-          <!-- SELECTOR ESTADO RAPIDO -->
           <select
             style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:3px 7px;font-size:10px;color:var(--tx2);cursor:pointer"
             onchange="quickEstado('${pf.proyecto_id}', this.value, '${pf.estado}')"
-          >${ESTADOS.map(e => `<option value="${e}" ${e===pf.estado?'selected':''}>${ELABELS[e]}</option>`).join('')}</select>
+          >${ESTADOS.map(e => `<option value="${e}" ${e===pf.estado?'selected':''}>${ELABELS[e]||e}</option>`).join('')}</select>
           ${rpill(roiDisplay(pf))}
           ${pf.tiene_inversores ? '<span class="badge bo">Inv.</span>' : ''}
           <button class="btn bg bs" onclick="editP('${pf.proyecto_id}')">Editar</button>
           <span class="dim" onclick="go('proy','${pf.proyecto_id}')">›</span>
         </div>
       </div>
-    </div>`).join('')}
-    ${!S.proyFinanciero.length ? '<div class="empty"><h3>Sin proyectos</h3></div>' : ''}
+    </div>`;
+
+  return `<div>
+    ${activos.map(renderPF).join('')}
+    ${!activos.length && !terminados.length ? '<div class="empty"><h3>Sin proyectos</h3></div>' : ''}
+    ${terminados.length ? `
+    <div style="margin-top:20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer" onclick="toggleTerminados()">
+        <div style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--pos)">
+          ✅ Proyectos terminados (${terminados.length})
+        </div>
+        <div style="flex:1;height:1px;background:var(--b1)"></div>
+        <span id="terminados-arrow" style="color:var(--tx3);font-size:12px">▼</span>
+      </div>
+      <div id="terminados-list" style="display:none">
+        ${terminados.map(renderPF).join('')}
+      </div>
+    </div>` : ''}
   </div>`;
 }
 
+function toggleTerminados() {
+  const el = $('terminados-list');
+  const arrow = $('terminados-arrow');
+  if (!el) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : '';
+  if (arrow) arrow.textContent = open ? '▼' : '▲';
+}
 async function quickEstado(pid, nuevoEstado, estadoActual) {
   // Confirmar cambios cr?ticos
-  const criticos = ['vendido','comprado'];
+  const criticos = ['comprado'];
   if (criticos.includes(nuevoEstado) && !confirm(`Pasar a "${nuevoEstado.replace('_',' ')}"? ${nuevoEstado==='vendido'?'Esto marcara el proyecto como finalizado.':''}`)) {
     renderSubs(); render(); // revertir select
     return;
@@ -1365,8 +1393,8 @@ function rPDet(id) {
     { k: 'in', l: 'Inversores' },
     { k: 'do', l: 'Documentos' }
   ];
-  const ELABELS2 = { en_analisis:'En analisis', comprado:'Comprado', en_obra:'En obra', a_la_venta:'A la venta', vendido:'Vendido' };
-  const ESTADOS2  = ['en_analisis','comprado','en_obra','a_la_venta','vendido'];
+  const ELABELS2 = { en_analisis:'En analisis', comprado:'Comprado', en_obra:'En obra', a_la_venta:'A la venta', liquidado:'Terminado', vendido:'Vendido' };
+  const ESTADOS2  = ['en_analisis','comprado','en_obra','a_la_venta','vendido','liquidado'];
   return `<div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <button class="btn bg bs" onclick="go('proy')">← Volver</button>
