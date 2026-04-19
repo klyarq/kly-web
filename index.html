@@ -5937,44 +5937,82 @@ function abrirLiquidacion(pid) {
   const invs = S.inversionesDetalle.filter(i => i.proyecto_id === pid);
   if (!pf || !invs.length) return;
 
-  const utilidad     = pf.utilidad_usd || 0;
-  const roiInvPct    = pf.roi_inversores_pct || 0;
-  const poolTotal    = invs.reduce((s,i) => s+(i.ganancia_inversor_usd||0), 0);
+  const utilidad  = pf.utilidad_usd || 0;
+  const roiInvPct = pf.roi_inversores_pct || 0;
+  const poolTotal = invs.reduce((s,i) => s+(i.ganancia_inversor_usd||0), 0);
 
   const filas = invs.map(iv => {
     const ganancia = iv.ganancia_inversor_usd || 0;
     const retorno  = iv.capital_invertido + ganancia;
-    const roiPct   = iv.capital_invertido > 0 ? (ganancia / iv.capital_invertido * 100).toFixed(1) : '—';
+    const roiPct   = iv.capital_invertido > 0 ? (ganancia / iv.capital_invertido * 100).toFixed(1) : '0.0';
     return { iv, ganancia, retorno, roiPct };
   });
 
-  const totalAPagar = filas.reduce((s, r) => s + r.retorno, 0);
+  const totalCapital = filas.reduce((s,r) => s + r.iv.capital_invertido, 0);
+  const totalAPagar  = filas.reduce((s,r) => s + r.retorno, 0);
+  const yaLiquidado  = invs.every(i => i.estado === 'devuelto');
 
   const html = `
-  <div style="padding:20px">
-    <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3);margin-bottom:14px">Liquidación — ${pf.nombre}</div>
-    <div class="g3 mb14" style="gap:8px;margin-bottom:14px">
-      <div class="card" style="padding:10px 14px"><div class="cl">Utilidad total</div><div class="${utilidad>=0?'pos':'neg'}" style="font-family:var(--fm)">${fU(utilidad)}</div></div>
-      <div class="card" style="padding:10px 14px"><div class="cl">Ganancia inversores (${f2(roiInvPct)}% ROI)</div><div class="acc" style="font-family:var(--fm)">${fU(poolTotal)}</div></div>
-      <div class="card" style="padding:10px 14px"><div class="cl">Total a pagar</div><div class="acc2" style="font-family:var(--fm)">${fU(totalAPagar)}</div></div>
+  <div style="padding:20px;max-height:85vh;overflow-y:auto">
+    <div style="font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px">
+      Liquidacion - ${pf.nombre}
+      <span style="font-size:10px;font-weight:400;color:var(--tx3);margin-left:8px">${new Date().toLocaleDateString('es-AR')}</span>
     </div>
-    <div class="tw"><table>
-      <thead><tr><th>Inversor</th><th>Código</th><th>Capital</th><th>Part.%</th><th>Ganancia</th><th>Total a cobrar</th><th>ROI</th></tr></thead>
+    <div class="g3 mb14" style="gap:8px;margin-bottom:14px">
+      <div class="card" style="padding:10px 14px">
+        <div class="cl">Utilidad total proyecto</div>
+        <div class="${utilidad>=0?'pos':'neg'}" style="font-family:var(--fm);font-weight:700;font-size:15px">${fU(utilidad)}</div>
+      </div>
+      <div class="card" style="padding:10px 14px">
+        <div class="cl">Ganancia inversores (${f2(roiInvPct)}% ROI)</div>
+        <div class="acc" style="font-family:var(--fm);font-weight:700;font-size:15px">${fU(poolTotal)}</div>
+      </div>
+      <div class="card" style="padding:10px 14px;border:1px solid rgba(245,208,32,.3)">
+        <div class="cl">Total capital + ganancia a devolver</div>
+        <div class="acc2" style="font-family:var(--fm);font-weight:800;font-size:17px">${fU(totalAPagar)}</div>
+      </div>
+    </div>
+    <div class="tw" style="margin-bottom:16px"><table>
+      <thead><tr>
+        <th>Inversor</th><th>Codigo</th><th>Capital</th><th>Ganancia</th>
+        <th>Total a cobrar</th><th>ROI</th><th>Estado</th>
+      </tr></thead>
       <tbody>${filas.map(({iv, ganancia, retorno, roiPct}) => `
         <tr>
           <td class="b">${iv.inversor_nombre}</td>
-          <td class="muted">${iv.inversor_codigo}</td>
+          <td class="muted" style="font-family:var(--fm)">${iv.inversor_codigo}</td>
           <td class="m">${fU(iv.capital_invertido)}</td>
-          <td class="m">${iv.participacion_pct}%</td>
-          <td class="m pos">${fU(ganancia)}</td>
-          <td class="m acc" style="font-weight:700">${fU(retorno)}</td>
+          <td class="m pos">${fU(ganancia)}${(iv.ganancia_extra_usd||0)>0?` <span style="font-size:9px;color:var(--acc2)">(+${fU(iv.ganancia_extra_usd)} bonus)</span>`:''}</td>
+          <td class="m acc" style="font-weight:700;font-size:13px">${fU(retorno)}</td>
           <td>${rpill(parseFloat(roiPct))}</td>
+          <td><span class="badge ${iv.estado==='devuelto'?'bv':'bb'}">${iv.estado||'activo'}</span></td>
         </tr>`).join('')}
       </tbody>
+      <tfoot><tr>
+        <td colspan="2" style="font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">TOTAL</td>
+        <td class="m b">${fU(totalCapital)}</td>
+        <td class="m pos b">${fU(poolTotal)}</td>
+        <td class="m acc b" style="font-size:13px">${fU(totalAPagar)}</td>
+        <td colspan="2"></td>
+      </tr></tfoot>
     </table></div>
-    <div style="margin-top:14px;display:flex;gap:8px">
-      <button class="btn bp" onclick="copiarLiquidacion('${pid}')">📋 Copiar resumen</button>
-      <button class="btn bv" onclick="CM('mo-liq')">OK Cerrar</button>
+    ${!yaLiquidado ? `
+    <div style="background:rgba(245,208,32,.07);border:1px solid rgba(245,208,32,.3);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--acc);margin-bottom:4px">Cerrar y liquidar proyecto</div>
+      <div style="font-size:10px;color:var(--tx2);margin-bottom:10px;line-height:1.6">
+        Marca todas las inversiones como <b>Devuelto</b> y mueve el proyecto a <b>Proyectos Terminados</b>. No modifica datos financieros.
+      </div>
+      <button class="btn bv" style="font-weight:700;padding:8px 18px" onclick="confirmarCierreLiquidacion('${pid}')">
+        Confirmar liquidar y cerrar proyecto
+      </button>
+    </div>` : `
+    <div style="background:rgba(129,199,132,.08);border:1px solid rgba(129,199,132,.3);border-radius:var(--r);padding:10px 14px;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--pos);font-weight:700">Proyecto ya liquidado - todas las inversiones devueltas</div>
+    </div>`}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn bp bs" onclick="exportLiquidacionPDF('${pid}')">Exportar PDF</button>
+      <button class="btn bg bs" onclick="copiarLiquidacion('${pid}')">Copiar resumen</button>
+      <button class="btn bg bs" onclick="CM('mo-liq')">Cerrar</button>
     </div>
   </div>`;
 
@@ -5983,13 +6021,170 @@ function abrirLiquidacion(pid) {
     mo = document.createElement('div');
     mo.id = 'mo-liq';
     mo.className = 'mo';
-    mo.innerHTML = `<div class="moc" style="max-width:720px;width:95%"><div id="mo-liq-body"></div></div>`;
+    mo.innerHTML = `<div class="moc" style="max-width:740px;width:95%"><div id="mo-liq-body"></div></div>`;
     mo.onclick = e => { if (e.target === mo) CM('mo-liq'); };
     document.body.appendChild(mo);
   }
   $('mo-liq-body').innerHTML = html;
   OM('mo-liq');
 }
+
+async function confirmarCierreLiquidacion(pid) {
+  if (!confirm('Confirmar liquidacion? Se marcaran todas las inversiones como Devuelto y el proyecto pasara a Terminados.')) return;
+  CM('mo-liq');
+  showLoad();
+  const invIds = S.inversionesDetalle.filter(i => i.proyecto_id === pid).map(i => i.id);
+  for (const id of invIds) {
+    await SB.from('inversiones').update({ estado: 'devuelto' }).eq('id', id);
+  }
+  await SB.from('proyectos').update({ estado: 'liquidado' }).eq('id', pid);
+  hideLoad();
+  await loadAll();
+  go('proy');
+  toast('Proyecto liquidado y cerrado correctamente');
+}
+
+function exportLiquidacionPDF(pid) {
+  const pf   = S.proyFinanciero.find(x => x.proyecto_id === pid);
+  const invs = S.inversionesDetalle.filter(i => i.proyecto_id === pid);
+  if (!pf || !invs.length) return;
+
+  const cfg       = S.cfg || {};
+  const empresa   = cfg.nombre_empresa || 'KLY Flipping';
+  const utilidad  = pf.utilidad_usd || 0;
+  const roiInvPct = pf.roi_inversores_pct || 0;
+  const poolTotal = invs.reduce((s,i) => s+(i.ganancia_inversor_usd||0), 0);
+  const filas     = invs.map(iv => {
+    const g = iv.ganancia_inversor_usd || 0;
+    const r = iv.capital_invertido + g;
+    const roi = iv.capital_invertido > 0 ? (g / iv.capital_invertido * 100).toFixed(1) : '0.0';
+    return { iv, g, r, roi };
+  });
+  const totalCap   = filas.reduce((s,x) => s + x.iv.capital_invertido, 0);
+  const totalPagar = filas.reduce((s,x) => s + x.r, 0);
+  const fecha      = new Date().toLocaleDateString('es-AR', { year:'numeric', month:'long', day:'numeric' });
+
+  const rowsHTML = filas.map(({iv,g,r,roi},idx) => `
+    <tr style="background:${idx%2===0?'#111':'#0d0d0d'}">
+      <td style="padding:9px 14px;font-weight:600;color:#fff;border-bottom:1px solid #1a1a1a">${iv.inversor_nombre}</td>
+      <td style="padding:9px 14px;color:#888;font-family:monospace;font-size:11px;border-bottom:1px solid #1a1a1a">${iv.inversor_codigo}</td>
+      <td style="padding:9px 14px;text-align:right;color:#ccc;border-bottom:1px solid #1a1a1a">$${iv.capital_invertido.toLocaleString('es-AR')}</td>
+      <td style="padding:9px 14px;text-align:right;color:#81c784;border-bottom:1px solid #1a1a1a">
+        $${g.toLocaleString('es-AR', {minimumFractionDigits:2})}
+        ${(iv.ganancia_extra_usd||0)>0?`<br><span style="font-size:9px;color:#ffb74d">+$${iv.ganancia_extra_usd} bonus</span>`:''}
+      </td>
+      <td style="padding:9px 14px;text-align:right;color:#f5d020;font-weight:700;font-size:14px;border-bottom:1px solid #1a1a1a">$${r.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+      <td style="padding:9px 14px;text-align:center;border-bottom:1px solid #1a1a1a">
+        <span style="background:rgba(245,208,32,.15);color:#f5d020;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">${roi}%</span>
+      </td>
+      <td style="padding:9px 14px;text-align:center;border-bottom:1px solid #1a1a1a">
+        <span style="background:${iv.estado==='devuelto'?'rgba(129,199,132,.15)':'rgba(79,195,247,.15)'};color:${iv.estado==='devuelto'?'#81c784':'#4fc3f7'};padding:3px 10px;border-radius:4px;font-size:10px;font-weight:600">
+          ${iv.estado==='devuelto'?'Devuelto':'Pendiente'}
+        </span>
+      </td>
+    </tr>`).join('');
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Liquidacion - ${pf.nombre}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#0a0a0a; color:#fff; font-family:'Inter',sans-serif; padding:48px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    @page { size:A4 landscape; margin:15mm; }
+    @media print { .no-print { display:none !important; } body { padding:0; } }
+  </style></head><body>
+
+  <!-- HEADER -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:24px;border-bottom:3px solid #f5d020">
+    <div>
+      <div style="font-size:30px;font-weight:800;color:#f5d020;letter-spacing:-1px">${empresa}</div>
+      <div style="font-size:11px;color:#888;margin-top:4px;letter-spacing:3px;text-transform:uppercase">Comprobante de Liquidacion de Proyecto</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">Fecha</div>
+      <div style="font-size:15px;font-weight:700;color:#fff;margin-top:2px">${fecha}</div>
+    </div>
+  </div>
+
+  <!-- PROYECTO -->
+  <div style="background:#111;border:1px solid #222;border-left:4px solid #f5d020;border-radius:8px;padding:18px 24px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-size:10px;color:#888;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Proyecto</div>
+      <div style="font-size:22px;font-weight:800;color:#fff">${pf.nombre}</div>
+      <div style="font-size:12px;color:#888;margin-top:3px">${pf.direccion||''} ${pf.tipo?'· '+pf.tipo:''}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:10px;color:#888;letter-spacing:1px;text-transform:uppercase">ROI del proyecto</div>
+      <div style="font-size:24px;font-weight:800;color:#f5d020;margin-top:2px">${f2(pf.roi_pct||0)}%</div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:28px">
+    <div style="background:#111;border:1px solid #222;border-radius:10px;padding:18px 22px">
+      <div style="font-size:10px;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Utilidad del proyecto</div>
+      <div style="font-size:24px;font-weight:800;color:${utilidad>=0?'#81c784':'#e57373'}">$${Math.round(utilidad).toLocaleString('es-AR')}</div>
+      <div style="font-size:11px;color:#666;margin-top:4px">Venta neta menos inversion total</div>
+    </div>
+    <div style="background:#111;border:1px solid #222;border-radius:10px;padding:18px 22px">
+      <div style="font-size:10px;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Ganancia total inversores</div>
+      <div style="font-size:24px;font-weight:800;color:#4fc3f7">$${Math.round(poolTotal).toLocaleString('es-AR')}</div>
+      <div style="font-size:11px;color:#666;margin-top:4px">${f2(roiInvPct)}% ROI sobre capital invertido</div>
+    </div>
+    <div style="background:#111;border:2px solid rgba(245,208,32,.4);border-radius:10px;padding:18px 22px">
+      <div style="font-size:10px;color:#888;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Total a devolver</div>
+      <div style="font-size:24px;font-weight:800;color:#f5d020">$${Math.round(totalPagar).toLocaleString('es-AR')}</div>
+      <div style="font-size:11px;color:#666;margin-top:4px">Capital $${Math.round(totalCap).toLocaleString('es-AR')} + ganancia</div>
+    </div>
+  </div>
+
+  <!-- TABLA -->
+  <div style="margin-bottom:36px">
+    <div style="font-size:10px;color:#888;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px">Detalle por inversor</div>
+    <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #1a1a1a">
+      <thead>
+        <tr style="background:#1a1a1a">
+          <th style="padding:11px 14px;text-align:left;font-size:10px;color:#888;letter-spacing:1px;text-transform:uppercase;font-weight:600">Inversor</th>
+          <th style="padding:11px 14px;text-align:left;font-size:10px;color:#888;letter-spacing:1px;text-transform:uppercase;font-weight:600">Codigo</th>
+          <th style="padding:11px 14px;text-align:right;font-size:10px;color:#888;letter-spacing:1px;text-transform:uppercase;font-weight:600">Capital</th>
+          <th style="padding:11px 14px;text-align:right;font-size:10px;color:#888;letter-spacing:1px;text-transform:uppercase;font-weight:600">Ganancia</th>
+          <th style="padding:11px 14px;text-align:right;font-size:10px;color:#888;letter-spacing:1px;text-transform:uppercase;font-weight:600">Total a cobrar</th>
+          <th style="padding:11px 14px;text-align:center;font-size:10px;color:#888;letter-spacing:1px;text-transform:uppercase;font-weight:600">ROI</th>
+          <th style="padding:11px 14px;text-align:center;font-size:10px;color:#888;letter-spacing:1px;text-transform:uppercase;font-weight:600">Estado</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHTML}</tbody>
+      <tfoot>
+        <tr style="background:#1a1a1a;border-top:2px solid #f5d020">
+          <td colspan="2" style="padding:13px 14px;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:700">TOTALES</td>
+          <td style="padding:13px 14px;text-align:right;font-weight:700;color:#fff;font-size:13px">$${Math.round(totalCap).toLocaleString('es-AR')}</td>
+          <td style="padding:13px 14px;text-align:right;font-weight:700;color:#81c784;font-size:13px">$${Math.round(poolTotal).toLocaleString('es-AR')}</td>
+          <td style="padding:13px 14px;text-align:right;font-weight:800;color:#f5d020;font-size:16px">$${Math.round(totalPagar).toLocaleString('es-AR')}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="border-top:1px solid #1a1a1a;padding-top:20px;display:flex;justify-content:space-between;align-items:center">
+    <div style="font-size:10px;color:#555">Generado por KLY Sistema de Gestion de Flipping Inmobiliario</div>
+    <div style="font-size:10px;color:#555">Documento confidencial - ${empresa}</div>
+  </div>
+
+  <div class="no-print" style="position:fixed;bottom:24px;right:24px;display:flex;gap:10px">
+    <button onclick="window.print()" style="background:#f5d020;color:#000;border:none;padding:13px 26px;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer;font-family:Inter,sans-serif;box-shadow:0 4px 20px rgba(245,208,32,.3)">
+      Imprimir / Guardar PDF
+    </button>
+    <button onclick="window.close()" style="background:#1a1a1a;color:#fff;border:1px solid #333;padding:13px 20px;border-radius:8px;font-size:13px;cursor:pointer;font-family:Inter,sans-serif">
+      Cerrar
+    </button>
+  </div>
+  </body></html>`);
+  win.document.close();
+}
+
 
 function copiarLiquidacion(pid) {
   const pf   = S.proyFinanciero.find(x => x.proyecto_id === pid);
