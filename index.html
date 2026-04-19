@@ -4400,7 +4400,7 @@ function rInv() {
 
   // KPIs
   const totalCap = S.inversionesDetalle.reduce((s,i) => s+(i.capital_invertido||0), 0);
-  const totalGan = S.inversionesDetalle.reduce((s,i) => s+(i.ganancia_inversor_usd || calcGananciaInv(i,i.utilidad_proyecto) || 0), 0);
+  const totalGan = S.inversionesDetalle.reduce((s,i) => s+(i.ganancia_inversor_usd||0), 0);
   const roiProm  = totalCap > 0 ? totalGan/totalCap*100 : 0;
 
   return `
@@ -4430,7 +4430,8 @@ function rInv() {
   ${externos.map(inv => {
     const invs = S.inversionesDetalle.filter(i => i.inversor_id === inv.id);
     const cap  = invs.reduce((s,i) => s+(i.capital_invertido||0), 0);
-    const gan  = invs.reduce((s,i) => s+(calcGananciaInv(i,i.utilidad_proyecto)||0), 0);
+    const gan  = invs.reduce((s,i) => s+(i.ganancia_inversor_usd||0), 0);
+    const ret  = invs.reduce((s,i) => s+(i.retorno_estimado_usd||0), 0);
     const roi  = cap > 0 ? gan/cap*100 : 0;
     return `<div class="card mb8" style="padding:12px 14px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -4440,8 +4441,8 @@ function rInv() {
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
             <div><div class="cl">Capital</div><div style="font-family:var(--fm);font-size:11px">${fU(cap)}</div></div>
             <div><div class="cl">Ganancia est.</div><div class="${gan>=0?'pos':'neg'}" style="font-family:var(--fm);font-size:11px">${fU(gan)}</div></div>
-            <div><div class="cl">ROI</div>${rpill(roi)}</div>
-            <div><div class="cl">Proyectos</div><div style="font-size:11px">${invs.length}</div></div>
+            <div><div class="cl">Retorno total</div><div style="font-family:var(--fm);font-size:11px;color:var(--acc)">${fU(cap+gan)}</div></div>
+            <div><div class="cl">ROI · Proyectos</div><div style="font-size:11px">${rpill(roi)} <span style="color:var(--tx3)">${invs.length}</span></div></div>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;margin-left:12px">
@@ -4460,7 +4461,7 @@ function rInvPerfil(invId) {
   if (!inv) return '<div class="empty"><h3>Inversor no encontrado</h3></div>';
   const invs = S.inversionesDetalle.filter(i => i.inversor_id === invId);
   const cap  = invs.reduce((s,i) => s+(i.capital_invertido||0), 0);
-  const gan  = invs.reduce((s,i) => s+(calcGananciaInv(i,i.utilidad_proyecto)||0), 0);
+  const gan  = invs.reduce((s,i) => s+(i.ganancia_inversor_usd||0), 0);
   const roi  = cap > 0 ? gan/cap*100 : 0;
 
   return `
@@ -4486,7 +4487,7 @@ function rInvPerfil(invId) {
   <div class="st mb8">Inversiones por proyecto</div>
   ${invs.length === 0 ? '<div class="empty">Sin inversiones registradas</div>' : invs.map(iv => {
     const pf  = S.proyFinanciero.find(p => p.proyecto_id === iv.proyecto_id);
-    const gan2= calcGananciaInv(iv, iv.utilidad_proyecto);
+    const gan2= iv.ganancia_inversor_usd || 0;
     const roi2= iv.capital_invertido > 0 ? gan2/iv.capital_invertido*100 : 0;
     return `<div class="card mb8" style="padding:12px 14px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -5909,13 +5910,11 @@ function abrirLiquidacion(pid) {
   if (!pf || !invs.length) return;
 
   const utilidad     = pf.utilidad_usd || 0;
-  const pctInv       = pf.dist_inv_pct || 0;
-  const poolTotal    = utilidad * pctInv / 100;
+  const roiInvPct    = pf.roi_inversores_pct || 0;
+  const poolTotal    = invs.reduce((s,i) => s+(i.ganancia_inversor_usd||0), 0);
 
   const filas = invs.map(iv => {
-    const ganancia = iv.ganancia_fija_usd
-      ? iv.ganancia_fija_usd
-      : poolTotal * (iv.participacion_pct || 0) / 100;
+    const ganancia = iv.ganancia_inversor_usd || 0;
     const retorno  = iv.capital_invertido + ganancia;
     const roiPct   = iv.capital_invertido > 0 ? (ganancia / iv.capital_invertido * 100).toFixed(1) : '—';
     return { iv, ganancia, retorno, roiPct };
@@ -5968,8 +5967,7 @@ function copiarLiquidacion(pid) {
   const pf   = S.proyFinanciero.find(x => x.proyecto_id === pid);
   const invs = S.inversionesDetalle.filter(i => i.proyecto_id === pid);
   const utilidad  = pf.utilidad_usd || 0;
-  const pctInv    = pf.dist_inv_pct || 0;
-  const poolTotal = utilidad * pctInv / 100;
+  const poolTotal = invs.reduce((s,i) => s+(i.ganancia_inversor_usd||0), 0);
 
   let txt = `LIQUIDACION — ${pf.nombre}\n`;
   txt += `Fecha: ${new Date().toLocaleDateString('es-AR')}\n`;
@@ -5977,9 +5975,7 @@ function copiarLiquidacion(pid) {
   txt += `Pool inversores (${pctInv}%): ${fU(poolTotal)}\n\n`;
 
   invs.forEach(iv => {
-    const ganancia = iv.ganancia_fija_usd
-      ? iv.ganancia_fija_usd
-      : poolTotal * (iv.participacion_pct || 0) / 100;
+    const ganancia = iv.ganancia_inversor_usd || 0;
     const retorno = iv.capital_invertido + ganancia;
     txt += `${iv.inversor_nombre} (${iv.inversor_codigo})\n`;
     txt += `  Capital: ${fU(iv.capital_invertido)}  |  Ganancia: ${fU(ganancia)}  |  Total: ${fU(retorno)}\n\n`;
