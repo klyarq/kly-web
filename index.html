@@ -1528,6 +1528,95 @@ function renderGastos(pid) {
   const penUSD = gs.reduce((s, g) => s + (g.pendiente_usd || 0), 0);
   const avPct = totUSD > 0 ? Math.round(pagUSD / totUSD * 100) : 0;
 
+  // ── Agrupación por rubro ──────────────────────────────────────
+  const rubroMap = {};
+  gs.forEach(g => {
+    const r = g.rubro || 'Sin rubro';
+    if (!rubroMap[r]) rubroMap[r] = { total: 0, pagado: 0, items: 0 };
+    rubroMap[r].total  += g.total_usd  || 0;
+    rubroMap[r].pagado += g.pagado_usd || 0;
+    rubroMap[r].items  += 1;
+  });
+  const rubros = Object.entries(rubroMap)
+    .map(([nombre, d]) => ({ nombre, ...d, pct: d.total > 0 ? Math.round(d.pagado / d.total * 100) : 0 }))
+    .sort((a, b) => b.total - a.total);
+
+  // colores cíclicos para el gráfico
+  const COLORS = ['#f5d020','#4fc3f7','#81c784','#ff8a65','#ce93d8','#80cbc4','#ffb74d','#90a4ae'];
+
+  const rubroCardsHTML = rubros.length > 1 ? `
+  <div class="card mb12">
+    <div class="sh mb12">
+      <div class="st">Avance por rubro</div>
+      <div style="font-size:10px;color:var(--tx3)">${rubros.length} rubros · ${gs.length} ítems</div>
+    </div>
+
+    <!-- Gráfico de barras horizontales -->
+    <div style="margin-bottom:18px">
+      ${rubros.map((r, i) => {
+        const color = COLORS[i % COLORS.length];
+        const pctBar = totUSD > 0 ? Math.round(r.total / totUSD * 100) : 0;
+        return `
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+            <div style="display:flex;align-items:center;gap:7px">
+              <span style="width:9px;height:9px;border-radius:2px;background:${color};display:inline-block;flex-shrink:0"></span>
+              <span style="font-size:11px;font-weight:600">${r.nombre}</span>
+              <span style="font-size:9px;color:var(--tx3)">${r.items} ítem${r.items>1?'s':''}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:10px;color:var(--tx3)">${pctBar}% del total</span>
+              <span style="font-size:11px;font-weight:700;color:${color};font-family:var(--fm)">${fU(r.total)}</span>
+            </div>
+          </div>
+          <!-- barra doble: fondo=total, fill=pagado -->
+          <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden;position:relative">
+            <div style="position:absolute;left:0;top:0;height:100%;width:${pctBar}%;background:${color};opacity:0.18;border-radius:4px"></div>
+            <div style="position:absolute;left:0;top:0;height:100%;width:${pctBar * r.pct / 100}%;background:${color};border-radius:4px;transition:width .4s"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:2px">
+            <span style="font-size:9px;color:var(--pos)">pagado ${fU(r.pagado)}</span>
+            <span style="font-size:9px;color:var(--tx3)">${r.pct}% avance</span>
+            <span style="font-size:9px;color:var(--neg)">${fU(r.total - r.pagado)} pendiente</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <!-- Tabla resumen compacta por rubro -->
+    <div class="tw"><table>
+      <thead><tr>
+        <th>Rubro</th><th>Ítems</th><th>Total USD</th><th>Pagado USD</th><th>Pendiente</th><th>Avance</th>
+      </tr></thead>
+      <tbody>
+        ${rubros.map((r, i) => `
+        <tr>
+          <td><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${COLORS[i%COLORS.length]};margin-right:6px;vertical-align:middle"></span><b>${r.nombre}</b></td>
+          <td class="m">${r.items}</td>
+          <td class="m acc">${fU(r.total)}</td>
+          <td class="m pos">${fU(r.pagado)}</td>
+          <td class="m ${(r.total-r.pagado)>0.5?'neg':'pos'}">${(r.total-r.pagado)>0.5?fU(r.total-r.pagado):'OK'}</td>
+          <td class="m">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="flex:1;height:6px;background:var(--s3);border-radius:3px;overflow:hidden">
+                <div style="height:100%;width:${r.pct}%;background:${COLORS[i%COLORS.length]};border-radius:3px"></div>
+              </div>
+              <span style="font-size:10px;font-weight:700;min-width:28px">${r.pct}%</span>
+            </div>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+      <tfoot><tr>
+        <td><b>TOTAL</b></td>
+        <td class="m">${gs.length}</td>
+        <td class="m acc"><b>${fU(totUSD)}</b></td>
+        <td class="m pos"><b>${fU(pagUSD)}</b></td>
+        <td class="m ${penUSD>0.5?'neg':'pos'}"><b>${penUSD>0.5?fU(penUSD):'OK'}</b></td>
+        <td class="m"><b>${avPct}%</b></td>
+      </tr></tfoot>
+    </table></div>
+  </div>` : '';
+
   const html = `
   <div class="g4 mb12">
     <div class="card"><div class="cl">Total obra USD</div><div class="cv acc">${fU(totUSD)}</div></div>
@@ -1539,6 +1628,7 @@ function renderGastos(pid) {
       <div class="obra-prog"><div class="obra-prog-fill" style="width:${avPct}%"></div></div>
     </div>
   </div>
+  ${rubroCardsHTML}
   <div class="card">
     <div class="sh">
       <div class="st">Planilla de obra <span style="font-size:10px;color:var(--tx3);font-weight:400;margin-left:6px">· doble click en celda para editar</span></div>
