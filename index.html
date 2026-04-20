@@ -7411,68 +7411,7 @@ function applyTheme() {
     const btn = document.getElementById('theme-btn');
     if (btn) btn.textContent = '☀';
   }
-}</script>
-
-<!-- MODAL — Presentación Inversor IA -->
-<div class="mo" id="mo-pres-inv">
-  <div class="moc" style="max-width:420px">
-    <div class="moh">
-      <div class="mot">✨ Presentación para Inversores</div>
-      <button class="btn bg bs" onclick="CM('mo-pres-inv')">✕</button>
-    </div>
-    <input type="hidden" id="pi-pid">
-    <div style="background:rgba(245,208,32,.06);border:1px solid rgba(245,208,32,.2);border-radius:var(--r);padding:12px;margin-bottom:14px;font-size:11px;color:var(--tx2)">
-      La IA va a generar el contenido comercial del PDF de 3 páginas: portada, análisis financiero y equipo. Tarda ~10 segundos.
-    </div>
-    <div class="fg"><label>Tipo de inversor objetivo</label>
-      <select id="pi-tipo">
-        <option value="general">Inversor general</option>
-        <option value="conservador">Conservador (bajo riesgo)</option>
-        <option value="agresivo">Agresivo (alto retorno)</option>
-        <option value="institucional">Institucional / fondo</option>
-      </select>
-    </div>
-    <div class="fg"><label>Idioma</label>
-      <select id="pi-idioma">
-        <option value="es">Español</option>
-        <option value="en">English</option>
-      </select>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-      <input type="checkbox" id="pi-graficos" checked style="accent-color:var(--acc)">
-      <label for="pi-graficos" style="font-size:11px;cursor:pointer">Incluir gráficos y barras de rentabilidad</label>
-    </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn bg bs" onclick="CM('mo-pres-inv')">Cancelar</button>
-      <button class="btn bp bs" onclick="_genPresentacion()" style="gap:5px">✨ Generar PDF</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL — Importar CSV masivo -->
-<div class="mo" id="mo-import">
-  <div class="moc" style="max-width:560px">
-    <div class="moh">
-      <div class="mot" id="mo-import-title">Importar datos</div>
-      <button class="btn bg bs" onclick="CM('mo-import')">✕</button>
-    </div>
-    <div style="background:rgba(245,208,32,.06);border:1px solid rgba(245,208,32,.2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:10px;color:var(--tx2)">
-      <b>Pasos:</b> 1) Descargá la plantilla modelo con el botón <b>↓ Plantilla</b> · 2) Completá los datos en Excel · 3) Guardá como CSV · 4) Subí el archivo acá
-    </div>
-    <div class="fg" style="font-size:9px;color:var(--tx3);margin-bottom:6px" id="mo-import-info"></div>
-    <div class="fg">
-      <label>Archivo CSV</label>
-      <input type="file" id="mo-import-file" accept=".csv,.txt" onchange="onImportFileChange(this)" style="padding:8px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);cursor:pointer">
-    </div>
-    <div id="mo-import-preview" style="margin-bottom:12px"></div>
-    <div class="fa">
-      <button class="btn bg" onclick="CM('mo-import')">Cancelar</button>
-      <button class="btn bp" id="mo-import-btn" onclick="confirmarImport()" disabled>Importar</button>
-    </div>
-  </div>
-</div>
-</body>
-</html>
+}
 // ================================================================
 // CAJA CHICA
 // ================================================================
@@ -7631,4 +7570,66 @@ function rCajaChica() {
   </div>`;
 }
 
+</script>
+
+<!-- MODAL — Presentación Inversor IA -->
+<div class="mo" id="mo-pres-inv">
+  <div class="moc" style="max-width:420px">
+    <div class="moh">
+      <div class="mot">✨ Presentación para Inversores</div>
+      <button class="btn bg bs" onclick="CM('mo-pres-inv')">✕</button>
+    </div>
+    <input type="hidden" id="pi-pid">
+    <div style="background:rgba(245,208,32,.06);border:1px solid rgba(245,208,32,.2);border-radius:var(--r);padding:12px;margin-bottom:14px;font-size:11px;color:var(--tx2)">
+      La IA va a generar el contenido comercial del PDF de 3 páginas: portada, análisis financiero y equipo. Tarda ~10 segundos.
+    </div>
+    <div class="fg"><label>Tipo de inversor objetivo</label>
+      <select id="pi-tipo">
+        <option value="general">Inversor general</option>
+        <option value="conservador">Conservador (bajo riesgo)</option>
+        <option value="agresivo">Agresivo (alto retorno)</option>
+        <option value="institucional">Institucional / fondo</option>
+      </select>
+    </div>
+    <div class="fg"><label>Idioma</label>
+      <select id="pi-idioma">
+        <option value="es">Español</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <input type="checkbox" id="pi-graficos" checked style="accent-color:var(--acc)">
+      <label for="pi-graficos" style="font-size:11px;cursor:pointer">Incluir gráficos y barras de rentabilidad</label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn bg bs" onclick="CM('mo-pres-inv')">Cancelar</button>
+      <button class="btn bp bs" onclick="_genPresentacion()" style="gap:5px">✨ Generar PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL — Importar CSV masivo -->
+<div class="mo" id="mo-import">
+  <div class="moc" style="max-width:560px">
+    <div class="moh">
+      <div class="mot" id="mo-import-title">Importar datos</div>
+      <button class="btn bg bs" onclick="CM('mo-import')">✕</button>
+    </div>
+    <div style="background:rgba(245,208,32,.06);border:1px solid rgba(245,208,32,.2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:10px;color:var(--tx2)">
+      <b>Pasos:</b> 1) Descargá la plantilla modelo con el botón <b>↓ Plantilla</b> · 2) Completá los datos en Excel · 3) Guardá como CSV · 4) Subí el archivo acá
+    </div>
+    <div class="fg" style="font-size:9px;color:var(--tx3);margin-bottom:6px" id="mo-import-info"></div>
+    <div class="fg">
+      <label>Archivo CSV</label>
+      <input type="file" id="mo-import-file" accept=".csv,.txt" onchange="onImportFileChange(this)" style="padding:8px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);cursor:pointer">
+    </div>
+    <div id="mo-import-preview" style="margin-bottom:12px"></div>
+    <div class="fa">
+      <button class="btn bg" onclick="CM('mo-import')">Cancelar</button>
+      <button class="btn bp" id="mo-import-btn" onclick="confirmarImport()" disabled>Importar</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
 
