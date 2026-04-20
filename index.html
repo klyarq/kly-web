@@ -315,6 +315,24 @@ select option{background:var(--s2);}
       <div class="afooter" id="auth-footer-txt">Acceso restringido</div>
     </div>
 
+    <!-- Panel nueva contraseña (viene del email de recovery) -->
+    <div id="auth-panel-new-password" style="display:none">
+      <div class="aerr" id="aerr-np"></div>
+      <div class="aok" id="aok-np"></div>
+      <div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:20px;line-height:1.6">
+        Ingresá tu nueva contraseña.
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:10px;color:rgba(255,255,255,.4);letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:6px">Nueva contraseña</label>
+        <input class="ainput" type="password" id="anp1" placeholder="Mínimo 8 caracteres" onkeydown="if(event.key==='Enter')saveNewPassword()">
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="font-size:10px;color:rgba(255,255,255,.4);letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:6px">Repetir contraseña</label>
+        <input class="ainput" type="password" id="anp2" placeholder="Repetir contraseña" onkeydown="if(event.key==='Enter')saveNewPassword()">
+      </div>
+      <button class="abtn abtn-primary" id="btn-np" onclick="saveNewPassword()">Guardar nueva contraseña</button>
+    </div>
+
     <!-- Panel recuperar contraseña -->
     <div id="auth-panel-recovery" style="display:none">
       <div class="aerr" id="aerr-rec"></div>
@@ -955,12 +973,30 @@ async function loadAuthBranding() {
 }
 
 function showAuthPanel(panel) {
-  $('auth-panel-login').style.display    = panel === 'login'    ? '' : 'none';
-  $('auth-panel-recovery').style.display = panel === 'recovery' ? '' : 'none';
-  // Clear errors
-  ['aerr','aerr-rec','aok-rec'].forEach(id => {
+  const panels = ['login','recovery','new-password'];
+  panels.forEach(p => {
+    const el = $('auth-panel-' + p);
+    if (el) el.style.display = p === panel ? '' : 'none';
+  });
+  ['aerr','aerr-rec','aok-rec','aerr-np','aok-np'].forEach(id => {
     const el = $(id); if (el) el.style.display = 'none';
   });
+}
+
+async function saveNewPassword() {
+  const p1 = vOf('anp1'), p2 = vOf('anp2');
+  const ee = $('aerr-np'), ok = $('aok-np');
+  ee.style.display = 'none'; ok.style.display = 'none';
+  if (!p1 || p1.length < 8) { ee.textContent = 'La contraseña debe tener al menos 8 caracteres'; ee.style.display = 'block'; return; }
+  if (p1 !== p2) { ee.textContent = 'Las contraseñas no coinciden'; ee.style.display = 'block'; return; }
+  const btn = $('btn-np');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+  const { error } = await SB.auth.updateUser({ password: p1 });
+  if (btn) { btn.disabled = false; btn.textContent = 'Guardar nueva contraseña'; }
+  if (error) { ee.textContent = error.message; ee.style.display = 'block'; return; }
+  ok.textContent = '✓ Contraseña actualizada correctamente. Redirigiendo...';
+  ok.style.display = 'block';
+  setTimeout(() => location.replace(location.origin), 2000);
 }
 
 async function login() {
@@ -2484,33 +2520,127 @@ async function cambiarMontoInv(pid, monto) {
 // DOCUMENTOS ? con signed URLs de Supabase Storage
 //
 function rPDo(pf) {
-  const pid = pf.proyecto_id;
-  const cats = ['Escribania', 'Proyecto', 'Inmobiliaria', 'Arquitectura', 'Permisos', 'Otros'];
+  const pid  = pf.proyecto_id;
+  const cats = ['Escribanía','Proyecto','Inmobiliaria','Arquitectura','Permisos','Otros'];
   const docs = S.docs.filter(d => d.proyecto_id === pid);
-  const dtc = { PDF: 'br', DWG: 'bb', JPG: 'by', PNG: 'by', SKP: 'bv', XLSX: 'bo', Otro: 'bgr' };
 
-  return `<div class="card">
-    <div class="sh"><div class="st">Documentos — ${pf.nombre}</div><button class="btn bp bs" onclick="openNDoc('${pid}')">+ Subir</button></div>
-    ${cats.map(cat => {
-    const d = docs.filter(x => x.categoria === cat); if (!d.length) return '';
-    return `<div class="mb12">
-        <div class="cl" style="margin-bottom:7px">${cat}</div>
-        <table><thead><tr><th>Nombre</th><th>Tipo</th><th>Tamano</th><th>Fecha</th><th>Accion</th></tr></thead>
-        <tbody>${d.map(doc => `<tr>
-          <td class="b">${doc.nombre}</td>
-          <td><span class="badge ${dtc[doc.tipo_archivo] || 'bgr'}">${doc.tipo_archivo}</span></td>
-          <td class="muted">${doc.size_bytes ? (doc.size_bytes / 1024).toFixed(0) + ' KB' : '—'}</td>
-          <td class="muted">${doc.fecha}</td>
-          <td>
-            <button class="btn bg bx" onclick="downloadDoc('${doc.storage_path}','${doc.nombre}')">↓ Bajar</button>
-            <button class="btn bg bx" onclick="delDoc('${doc.id}','${doc.storage_path}')">✕</button>
-          </td>
-        </tr>`).join('')}</tbody></table>
-      </div>`;
-  }).join('')}
-    ${!docs.length ? '<div class="empty"><h3>Sin documentos</h3></div>' : ''}
+  const iconos = {
+    PDF: '📄', DWG: '📐', JPG: '🖼', JPEG: '🖼', PNG: '🖼',
+    SKP: '🏗', XLSX: '📊', DOCX: '📝', ZIP: '📦', Otro: '📎'
+  };
+  const colores = {
+    PDF: '#e57373', DWG: '#4fc3f7', JPG: '#ffb74d', JPEG: '#ffb74d',
+    PNG: '#ffb74d', SKP: '#81c784', XLSX: '#66bb6a', DOCX: '#7986cb',
+    ZIP: '#a1887f', Otro: '#90a4ae'
+  };
+
+  // Agrupar por categoría
+  const porCat = cats.map(cat => ({
+    cat,
+    items: docs.filter(d => d.categoria === cat)
+  })).filter(g => g.items.length > 0);
+
+  const sinCat = docs.filter(d => !cats.includes(d.categoria));
+  if (sinCat.length) porCat.push({ cat: 'Sin categoría', items: sinCat });
+
+  const totalSize = docs.reduce((s,d) => s+(d.size_bytes||0), 0);
+  const fmtSize = b => b > 1048576 ? (b/1048576).toFixed(1)+' MB' : (b/1024).toFixed(0)+' KB';
+
+  return `<div>
+
+    <!-- KPIs -->
+    <div class="g4 mb12">
+      <div class="card"><div class="cl">Total documentos</div><div class="cv acc">${docs.length}</div></div>
+      <div class="card"><div class="cl">Categorías</div><div class="cv">${porCat.length}</div></div>
+      <div class="card"><div class="cl">Tamaño total</div><div class="cv">${docs.length ? fmtSize(totalSize) : '—'}</div></div>
+      <div class="card">
+        <div class="cl">Por tipo</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">
+          ${[...new Set(docs.map(d=>d.tipo_archivo))].map(t =>
+            `<span style="background:${colores[t]||'#90a4ae'}22;color:${colores[t]||'#90a4ae'};border:1px solid ${colores[t]||'#90a4ae'}44;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700">${t}</span>`
+          ).join('')}
+          ${!docs.length ? '<span style="font-size:11px;color:var(--tx3)">—</span>' : ''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Por categoría -->
+    ${!docs.length ? `
+    <div class="card">
+      <div class="empty" style="padding:32px">
+        <h3>Sin documentos</h3>
+        <p>Subí escrituras, planos, contratos y cualquier archivo del proyecto.</p>
+        <button class="btn bp" onclick="openNDoc('${pid}')" style="margin-top:14px">+ Subir primer documento</button>
+      </div>
+    </div>` : porCat.map(({cat, items}) => `
+    <div class="card mb10">
+      <div class="sh mb10">
+        <div class="st" style="font-size:12px">${cat} <span style="font-size:10px;color:var(--tx3);font-weight:400">(${items.length})</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+        ${items.map(doc => {
+          const ext  = doc.tipo_archivo || 'Otro';
+          const color = colores[ext] || '#90a4ae';
+          const icono = iconos[ext]  || '📎';
+          const size  = doc.size_bytes ? fmtSize(doc.size_bytes) : '';
+          return `
+          <div style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:8px;position:relative;transition:border-color .15s" onmouseover="this.style.borderColor='${color}44'" onmouseout="this.style.borderColor='var(--b1)'">
+            <!-- Ícono tipo -->
+            <div style="display:flex;align-items:flex-start;justify-content:space-between">
+              <div style="font-size:24px;line-height:1">${icono}</div>
+              <span style="background:${color}22;color:${color};border:1px solid ${color}44;padding:2px 7px;border-radius:4px;font-size:8px;font-weight:700;letter-spacing:1px">${ext}</span>
+            </div>
+            <!-- Nombre -->
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--tx1);line-height:1.3;word-break:break-word">${doc.nombre}</div>
+              ${doc.notas ? `<div style="font-size:10px;color:var(--tx3);margin-top:2px">${doc.notas}</div>` : ''}
+            </div>
+            <!-- Meta -->
+            <div style="font-size:9px;color:var(--tx3);display:flex;gap:8px;flex-wrap:wrap">
+              ${size ? `<span>📦 ${size}</span>` : ''}
+              <span>📅 ${doc.fecha||'—'}</span>
+            </div>
+            <!-- Acciones -->
+            <div style="display:flex;gap:6px;margin-top:2px">
+              <button class="btn bp bs" style="flex:1;font-size:10px;padding:5px 0" onclick="downloadDoc('${doc.storage_path}','${doc.nombre}')">↓ Descargar</button>
+              ${_isPreviewable(doc.tipo_archivo) ? `<button class="btn bg bx" style="font-size:10px" onclick="previewDoc('${doc.storage_path}','${doc.nombre}','${doc.tipo_archivo}')">👁</button>` : ''}
+              <button class="btn bd bx" style="font-size:10px" onclick="delDoc('${doc.id}','${doc.storage_path}')">✕</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`).join('')}
+
   </div>`;
 }
+
+function _isPreviewable(tipo) {
+  return ['PDF','JPG','JPEG','PNG'].includes(tipo);
+}
+
+async function previewDoc(storagePath, nombre, tipo) {
+  showLoad();
+  const { data, error } = await SB.storage.from('documentos').createSignedUrl(storagePath, 300);
+  hideLoad();
+  if (error) return toast('Error: ' + error.message, 'er');
+  const url = data.signedUrl;
+
+  // Abrir en ventana según tipo
+  if (['JPG','JPEG','PNG'].includes(tipo)) {
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${nombre}</title>
+    <style>*{margin:0;padding:0;box-sizing:border-box;}body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:12px;}
+    img{max-width:95vw;max-height:90vh;object-fit:contain;border-radius:8px;}
+    .nm{color:#888;font-size:12px;font-family:sans-serif;}
+    button{background:#1a1a1a;color:#fff;border:1px solid #333;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:12px;}</style></head>
+    <body><div class="nm">${nombre}</div><img src="${url}" alt="${nombre}"><button onclick="window.close()">Cerrar</button></body></html>`);
+    win.document.close();
+  } else {
+    // PDF — abrir directo en nueva pestaña
+    window.open(url, '_blank');
+  }
+}
+
 
 // Download usando signed URL de Supabase Storage
 async function downloadDoc(storagePath, nombre) {
@@ -7528,7 +7658,16 @@ async function marcarExpPagada(id) {
   const { data: { session } } = await SB.auth.getSession();
   if (session?.user) await initApp(session.user);
 })();
-SB.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') location.reload(); });
+SB.auth.onAuthStateChange(async (ev, session) => {
+  if (ev === 'SIGNED_OUT') { location.reload(); return; }
+  if (ev === 'PASSWORD_RECOVERY') {
+    // User clicked the reset link in their email
+    $('auth')?.style && ($('auth').style.display = 'flex');
+    $('app')?.style  && ($('app').style.display  = 'none');
+    showAuthPanel('new-password');
+    return;
+  }
+});
 
 function toggleTheme() {
   const isLight = document.body.classList.toggle('light');
