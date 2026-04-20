@@ -298,6 +298,7 @@ select option{background:var(--s2);}
     <div class="scat">Finanzas</div>
     <div class="si" id="ni-caja" onclick="go('caja')"><span class="ic">◎</span><span class="si-label">Caja Global</span></div>
     <div class="si" id="ni-socios" onclick="go('socios')"><span class="ic">◇</span><span class="si-label">Caja Socios</span></div>
+  <div class="si" id="ni-chica" onclick="go('chica')"><span class="ic">◈</span><span class="si-label">Caja Chica</span></div>
     <div class="si" id="ni-inv" onclick="go('inv')"><span class="ic">◈</span><span class="si-label">Inversores</span></div>
     <div class="scat">Gestión</div>
     <div class="si" id="ni-inmob" onclick="go('inmob')"><span class="ic">🏢</span><span class="si-label">Inmobiliarias</span></div>
@@ -470,7 +471,39 @@ select option{background:var(--s2);}
   <div class="fa"><button class="btn bg" onclick="CM('mo-iv')">Cancelar</button><button class="btn bp" onclick="saveInversion()">Guardar</button></div>
 </div></div>
 
-<!-- CAJA SOCIO -->
+<!-- CAJA SOCIO <!-- CAJA CHICA MODAL -->
+<div class="mo" id="mo-cc"><div class="mbox">
+  <div class="mt" id="mcct">MOVIMIENTO CAJA CHICA</div>
+  <div class="fr">
+    <div class="fg">
+      <label>Tipo</label>
+      <select id="ccTipo" onchange="updCCTipo()">
+        <option value="ingreso">Ingreso (recarga desde caja global)</option>
+        <option value="egreso">Egreso (gasto de caja chica)</option>
+      </select>
+    </div>
+    <div class="fg"><label>Fecha</label><input type="date" id="ccFecha"></div>
+  </div>
+  <div class="fg"><label>Concepto</label><input id="ccConcepto" placeholder="Ej: Reserva hotel, utiles, taxi..."></div>
+  <div class="fr">
+    <div class="fg"><label>Monto</label><input type="number" id="ccMonto" step="1" min="0" placeholder="0" oninput="updCCPreview()"></div>
+    <div class="fg"><label>Moneda</label><select id="ccMoneda" onchange="updCCPreview()"><option value="ARS">ARS</option><option value="USD">USD</option></select></div>
+  </div>
+  <div id="cc-ingreso-info" style="background:rgba(245,208,32,.08);border:1px solid rgba(245,208,32,.2);border-radius:var(--r);padding:8px 12px;font-size:10px;color:var(--tx2);line-height:1.6;margin-bottom:10px">
+    Al confirmar se genera un <b>egreso en Caja Global</b> por el mismo monto (concepto: "Recarga Caja Chica").
+  </div>
+  <div id="cc-egreso-info" style="display:none;background:rgba(79,195,247,.06);border:1px solid rgba(79,195,247,.2);border-radius:var(--r);padding:8px 12px;font-size:10px;color:var(--tx2);line-height:1.6;margin-bottom:10px">
+    El gasto se descuenta solo de Caja Chica. No afecta Caja Global.
+  </div>
+  <div id="cc-preview" style="font-size:11px;color:var(--acc2);font-family:var(--fm);margin-bottom:8px;font-weight:700"></div>
+  <div class="fg"><label>Notas (opcional)</label><textarea id="ccNotas" style="min-height:40px"></textarea></div>
+  <div class="fa">
+    <button class="btn bg" onclick="CM('mo-cc')">Cancelar</button>
+    <button class="btn bp" onclick="saveCC()">Guardar</button>
+  </div>
+</div></div>
+
+-->
 <div class="mo" id="mo-cs"><div class="mbox">
   <div class="mt" id="mcst">MOVIMIENTO DE SOCIO</div>
   <div class="fr"><div class="fg"><label>Socio</label><select id="csSoc"><option>Julian</option><option>Franco</option><option>Mateo</option></select></div><div class="fg"><label>Tipo</label><select id="csT"><option value="aporte">Aporte personal</option><option value="ganancia">Ganancia distribuida</option><option value="retiro">Retiro de ganancias</option><option value="reembolso">Reembolso pendiente</option><option value="egreso">Egreso</option></select></div></div>
@@ -637,6 +670,7 @@ const S = {
   // Datos desde vistas SQL (fuente de verdad)
   proyFinanciero: [],   // v_proyecto_financiero
   dashKpis: null,       // v_dashboard_kpis (una fila)
+  cajaChica: [],         // caja_chica
   alertas: [],          // v_alertas
   gastosObra: [],       // v_gastos_obra_usd (filtrado por proyecto activo)
   inversionesDetalle: [],// v_inversiones_detalle
@@ -871,7 +905,7 @@ async function initApp(user) {
 async function loadAll() {
   const eid = S.eid;
   // Consultas paralelas: vistas SQL + tablas base para selects/forms
-  const [vpf, dkpi, alrt, invd, pfcomp, proy, invs, mov, cs, of, rm, rp, usrs] = await Promise.all([
+  const [vpf, dkpi, alrt, invd, pfcomp, proy, invs, mov, cs, of, rm, rp, usrs, cc] = await Promise.all([
     SB.from('v_proyecto_financiero').select('*').eq('empresa_id', eid),
     SB.from('v_dashboard_kpis').select('*').single(),
     SB.from('v_alertas').select('*').eq('empresa_id', eid).limit(50),
@@ -885,9 +919,11 @@ async function loadAll() {
     SB.from('redes_metricas').select('*').eq('empresa_id', eid).order('fecha', { ascending: false }).limit(20),
     SB.from('redes_posts').select('*').eq('empresa_id', eid).order('fecha'),
     SB.from('usuarios').select('*').eq('empresa_id', eid),
+    SB.from('caja_chica').select('*').eq('empresa_id', eid).order('fecha', { ascending: false }).limit(500),
   ]);
 
   S.proyFinanciero = vpf.data || [];
+  S.cajaChica = cc?.data || [];
   S.dashKpis = dkpi.data || null;
   S.alertas = alrt.data || [];
   S.inversionesDetalle = invd.data || [];
@@ -975,6 +1011,8 @@ function setupRT() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'inversiones' },
       async () => { await loadAll(); render(); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'caja_socios', filter: `empresa_id=eq.${S.eid}` },
+    () => { loadAll().then(render); })
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'caja_chica', filter: `empresa_id=eq.${S.eid}` },
       async () => { await loadAll(); render(); })
     .subscribe(st => {
       const ok = st === 'SUBSCRIBED';
@@ -1009,7 +1047,7 @@ function render() {
   const titles = {
     dash: 'DASHBOARD', proy: 'PROYECTOS', pref: 'PREFACTIBILIDADES',
     caja: 'CAJA GLOBAL', socios: 'CAJA SOCIOS', inv: 'INVERSORES',
-    oficina: 'OFICINA', redes: 'REDES', admin: 'PREFERENCIAS'
+    oficina: 'OFICINA', redes: 'REDES', admin: 'PREFERENCIAS', chica: 'CAJA CHICA'
   };
   const acts = {
     dash: `<div style="display:flex;gap:6px"><button class="btn bg bs" onclick="exportDashExcel()">↓ Excel</button><button class="btn bg bs" onclick="exportDashPDF()">📄 PDF</button><button class="btn bg bs" onclick="openDC()">⚙ Config</button></div>`,
@@ -1019,6 +1057,7 @@ function render() {
     socios: `<div style="display:flex;gap:6px"><button class="btn bg bs" onclick="exportSociosExcel()">↓ Excel</button><button class="btn bg bs" onclick="exportSociosPDF()">📄 PDF</button><button class="btn bp" onclick="openNCS()">+ Mov. socio</button></div>`,
     inv: `<div style="display:flex;gap:6px">${!S._invPerfilId ? `<button class="btn bg bs" onclick="exportInversoresExcel()">↓ Excel</button><button class="btn bg bs" onclick="descargarPlantilla('inversores')">↓ Plantilla</button><button class="btn bg bs" onclick="importarCSV('inversores')">↑ Importar</button>` : ''}<button class="btn bp" onclick="openNI()">+ Inversor</button>${S._invPerfilId ? ` <button class="btn bg bs" onclick="S._invPerfilId=null;render()">← Lista</button>` : ''}</div>`,
     oficina: `<button class="btn bp" onclick="OM('mo-of')">+ Gasto</button>`,
+    chica: `<button class="btn bp" onclick="openNCC()">+ Movimiento</button>`,
     redes: `<button class="btn bp" onclick="OM('mo-rm')">Metricas</button> <button class="btn bg bs" onclick="openNPost()">+ Post</button>`,
 
     admin: ''
@@ -1036,7 +1075,7 @@ function render() {
 
   }
   $('tbr').innerHTML = (acts[pg] || '') + extra;
-  const map = { dash: rDash, proy: rProys, pref: rPref, caja: rCaja, socios: rSocios, inv: rInv, inmob: rInmob, oficina: rOficina, redes: rRedes, admin: rAdmin };
+  const map = { dash: rDash, proy: rProys, pref: rPref, caja: rCaja, socios: rSocios, inv: rInv, inmob: rInmob, oficina: rOficina, redes: rRedes, admin: rAdmin, chica: rCajaChica };
   $('page').innerHTML = (map[pg] || rDash)();
   // Post-render: bind inline editing
   if (pg === 'proy' && spid && stab === 'ga') bindInlineEdit();
@@ -7434,3 +7473,162 @@ function applyTheme() {
 </div>
 </body>
 </html>
+// ================================================================
+// CAJA CHICA
+// ================================================================
+let editCCid = null;
+
+function updCCTipo() {
+  const tipo = $('ccTipo')?.value;
+  const iInfo = $('cc-ingreso-info'), eInfo = $('cc-egreso-info');
+  if (iInfo) iInfo.style.display = tipo === 'ingreso' ? '' : 'none';
+  if (eInfo) eInfo.style.display = tipo === 'egreso'  ? '' : 'none';
+  updCCPreview();
+}
+
+function updCCPreview() {
+  const monto  = parseFloat($('ccMonto')?.value) || 0;
+  const moneda = $('ccMoneda')?.value || 'ARS';
+  const tipo   = $('ccTipo')?.value;
+  const tc     = S.cfg?.tc || 1200;
+  const usd    = moneda === 'USD' ? monto : monto / tc;
+  const el     = $('cc-preview');
+  if (!el || !monto) { if(el) el.textContent=''; return; }
+  el.textContent = moneda === 'ARS'
+    ? `${fA(monto)} ARS ≈ ${fU(usd)} USD (TC $${fA(tc)})`
+    : `${fU(monto)} USD`;
+}
+
+function openNCC() {
+  editCCid = null;
+  $('mcct').textContent = 'MOVIMIENTO CAJA CHICA';
+  sv('ccFecha', td());
+  sv('ccConcepto', '');
+  sv('ccMonto', '');
+  sv('ccNotas', '');
+  if ($('ccTipo')) $('ccTipo').value = 'egreso';
+  if ($('ccMoneda')) $('ccMoneda').value = 'ARS';
+  updCCTipo();
+  OM('mo-cc');
+}
+
+async function saveCC() {
+  const tipo     = $('ccTipo')?.value;
+  const concepto = vOf('ccConcepto');
+  const monto    = parseFloat(vOf('ccMonto')) || 0;
+  const moneda   = vOf('ccMoneda') || 'ARS';
+  const fecha    = vOf('ccFecha') || td();
+  const notas    = vOf('ccNotas') || null;
+  const tc       = S.cfg?.tc || 1200;
+
+  if (!concepto) return toast('Ingresa el concepto', 'er');
+  if (!monto || monto <= 0) return toast('Ingresa un monto válido', 'er');
+
+  const monto_usd_equiv = moneda === 'USD' ? monto : Math.round(monto / tc * 100) / 100;
+
+  showLoad();
+
+  // Si es ingreso → crear egreso en caja global primero
+  let mov_global_id = null;
+  if (tipo === 'ingreso') {
+    const { data: movGlobal, error: errMov } = await SB.from('movimientos_caja').insert({
+      empresa_id : S.eid,
+      tipo       : 'egreso',
+      concepto   : `Recarga Caja Chica — ${concepto}`,
+      monto      : monto,
+      moneda     : moneda,
+      tc_usado   : moneda === 'ARS' ? tc : null,
+      monto_usd_equiv,
+      fecha,
+      notas      : 'Generado automáticamente por recarga de Caja Chica'
+    }).select().single();
+    if (errMov) { hideLoad(); return toast('Error en caja global: ' + errMov.message, 'er'); }
+    mov_global_id = movGlobal?.id || null;
+  }
+
+  // Insertar en caja_chica
+  const { error } = await SB.from('caja_chica').insert({
+    empresa_id     : S.eid,
+    tipo, concepto, monto, moneda,
+    tc_usado       : moneda === 'ARS' ? tc : null,
+    monto_usd_equiv,
+    fecha, notas,
+    mov_global_id
+  });
+
+  hideLoad();
+  if (error) return toast(error.message, 'er');
+  CM('mo-cc');
+  await loadAll(); render();
+  toast(tipo === 'ingreso'
+    ? 'Ingreso cargado + egreso generado en Caja Global'
+    : 'Egreso de Caja Chica registrado');
+}
+
+async function delCC(id) {
+  const mov = S.cajaChica.find(m => m.id === id);
+  if (!mov) return;
+  if (!confirm(`Eliminar "${mov.concepto}"?`)) return;
+  showLoad();
+  // Si tenía un mov en caja global asociado, eliminarlo también
+  if (mov.mov_global_id) {
+    await SB.from('movimientos_caja').delete().eq('id', mov.mov_global_id);
+  }
+  await SB.from('caja_chica').delete().eq('id', id);
+  hideLoad();
+  await loadAll(); render();
+  toast('Movimiento eliminado');
+}
+
+function rCajaChica() {
+  const movs = S.cajaChica || [];
+  const tc   = S.cfg?.tc || 1200;
+
+  const saldo = movs.reduce((s, m) => {
+    const usd = m.monto_usd_equiv || (m.moneda === 'USD' ? m.monto : m.monto / tc);
+    return m.tipo === 'ingreso' ? s + usd : s - usd;
+  }, 0);
+  const totalIng = movs.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+(m.monto_usd_equiv||0),0);
+  const totalEg  = movs.filter(m=>m.tipo==='egreso') .reduce((s,m)=>s+(m.monto_usd_equiv||0),0);
+
+  return `
+  <div class="g3 mb12">
+    <div class="card"><div class="cl">Saldo actual</div><div class="cv ${saldo>=0?'acc':'neg'}">${fU(saldo)}</div><div class="csub">en USD equiv.</div></div>
+    <div class="card"><div class="cl">Total ingresos (recargas)</div><div class="cv pos">${fU(totalIng)}</div></div>
+    <div class="card"><div class="cl">Total egresos (gastos)</div><div class="cv neg">${fU(totalEg)}</div></div>
+  </div>
+
+  <div class="card">
+    <div class="sh">
+      <div class="st">Movimientos</div>
+      <div style="font-size:10px;color:var(--tx3)">Los ingresos generan egreso automático en Caja Global</div>
+    </div>
+    <div class="tw"><table>
+      <thead><tr>
+        <th>Fecha</th><th>Tipo</th><th>Concepto</th>
+        <th>Monto</th><th>USD equiv.</th><th>Link global</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${!movs.length ? `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--tx3)">Sin movimientos. Usá "+ Movimiento" para cargar el saldo inicial.</td></tr>` : ''}
+        ${movs.map(m => {
+          const usd = m.monto_usd_equiv || (m.moneda === 'USD' ? m.monto : m.monto / tc);
+          const isIng = m.tipo === 'ingreso';
+          return `<tr>
+            <td class="muted">${m.fecha}</td>
+            <td><span class="badge ${isIng?'bv':'by'}" style="font-size:8px">${isIng?'↑ Ingreso':'↓ Egreso'}</span></td>
+            <td class="b">${m.concepto}${m.notas?`<div style="font-size:9px;color:var(--tx3)">${m.notas}</div>`:''}</td>
+            <td class="m r ${isIng?'pos':'neg'}">${isIng?'+':'-'}${m.moneda==='ARS'?fA(m.monto):fU(m.monto)} ${m.moneda}</td>
+            <td class="m r ${isIng?'pos':'neg'}">${isIng?'+':'-'}${fU(usd)}</td>
+            <td class="m" style="text-align:center">${m.mov_global_id
+              ? `<span style="font-size:9px;color:var(--pos)" title="Egreso en Caja Global generado">✓ Global</span>`
+              : '<span style="font-size:9px;color:var(--tx3)">—</span>'
+            }</td>
+            <td><button class="btn bg bx" onclick="delCC('${m.id}')">✕</button></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+
