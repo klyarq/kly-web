@@ -1199,12 +1199,12 @@ function rDash() {
       <div class="csub">${k?.proyectos_activos || 0} activos · ${k?.proyectos_vendidos || 0} vendidos</div>
     </div>
     <div class="card">
-      <div class="cl">Compras (excl. análisis)</div>
+      <div class="cl">Compras totales</div>
       <div class="cv">${fU(k?.total_compras_usd)}</div>
       <div class="csub">+ ${fU(k?.total_gastos_compra_usd)} gastos</div>
     </div>
     <div class="card">
-      <div class="cl">Obra USD (vendidos)</div>
+      <div class="cl">Obra USD (cerrados)</div>
       <div class="cv acc2">${fU(k?.obra_vendidos_usd)}</div>
       <div class="csub">desde gastos_obra reales</div>
     </div>
@@ -1216,7 +1216,7 @@ function rDash() {
     <div class="card">
       <div class="cl">ROI promedio (vendidos)</div>
       <div class="cv">${rpill(k?.roi_promedio_pct)}</div>
-      <div class="csub">proyectos vendidos</div>
+      <div class="csub">vendidos y terminados</div>
     </div>
   </div>
 
