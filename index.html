@@ -29,10 +29,29 @@ body{background:var(--bg);color:var(--tx);display:flex;overflow:hidden;}
 
 /* AUTH */
 #auth{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;}
-.abox{background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:44px;width:400px;max-width:95vw;}
-.alogo{font-size:56px;font-weight:900;color:var(--acc);letter-spacing:4px;line-height:1;}
-.asub{font-size:9px;color:var(--tx3);letter-spacing:3px;text-transform:uppercase;margin-bottom:36px;margin-top:4px;}
-.aerr{background:rgba(240,77,77,.08);border:1px solid rgba(240,77,77,.2);border-radius:var(--r);padding:9px 12px;font-size:11px;color:var(--err);margin-bottom:14px;display:none;}
+/* LOGIN */
+#auth{display:flex;align-items:center;justify-content:center;min-height:100vh;width:100%;position:relative;overflow:hidden;background:var(--auth-bg,#0a0a0a);}
+#auth-bg-pattern{position:absolute;inset:0;pointer-events:none;opacity:.4;background-image:radial-gradient(circle at 20% 50%,var(--auth-color,#f5d020)08 0%,transparent 50%),radial-gradient(circle at 80% 20%,var(--auth-color,#f5d020)05 0%,transparent 40%);}
+#auth-side{display:none;}
+.abox{position:relative;z-index:2;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:48px 44px;width:420px;max-width:95vw;backdrop-filter:blur(20px);}
+.alogo-wrap{margin-bottom:32px;}
+.alogo-img{max-width:140px;max-height:56px;object-fit:contain;margin-bottom:10px;}
+.alogo-txt{font-size:42px;font-weight:900;letter-spacing:3px;line-height:1;color:var(--auth-color,#f5d020);}
+.asub{font-size:10px;color:rgba(255,255,255,.4);letter-spacing:2.5px;text-transform:uppercase;margin-top:5px;}
+.aerr{background:rgba(240,77,77,.1);border:1px solid rgba(240,77,77,.25);border-radius:10px;padding:10px 13px;font-size:11px;color:#f57f7f;margin-bottom:16px;display:none;}
+.aok{background:rgba(129,199,132,.1);border:1px solid rgba(129,199,132,.25);border-radius:10px;padding:10px 13px;font-size:11px;color:#81c784;margin-bottom:16px;display:none;}
+.alink{background:none;border:none;color:rgba(255,255,255,.4);font-size:11px;cursor:pointer;padding:0;text-decoration:underline;font-family:inherit;}
+.alink:hover{color:rgba(255,255,255,.7);}
+.abtn{width:100%;padding:13px;font-size:13px;font-weight:700;border:none;border-radius:10px;cursor:pointer;font-family:inherit;transition:opacity .15s,transform .1s;letter-spacing:.5px;}
+.abtn:hover{opacity:.9;}
+.abtn:active{transform:scale(.98);}
+.abtn:disabled{opacity:.5;cursor:not-allowed;}
+.abtn-primary{background:var(--auth-color,#f5d020);color:#000;}
+.abtn-ghost{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);margin-top:8px;}
+.ainput{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px 14px;color:#fff;font-size:13px;font-family:inherit;outline:none;transition:border-color .15s;box-sizing:border-box;}
+.ainput:focus{border-color:var(--auth-color,#f5d020);}
+.ainput::placeholder{color:rgba(255,255,255,.25);}
+.afooter{text-align:center;margin-top:20px;font-size:10px;color:rgba(255,255,255,.2);letter-spacing:1px;}
 
 /* SIDEBAR COLAPSABLE */
 #sb{
@@ -268,14 +287,49 @@ select option{background:var(--s2);}
 
 <!-- ═══════ AUTH ═══════ -->
 <div id="auth">
+  <div id="auth-bg-pattern"></div>
   <div class="abox">
-    <div class="alogo">KLY</div>
-    <div class="asub">Flipping Inmobiliario · Buenos Aires</div>
-    <div class="aerr" id="aerr"></div>
-    <div class="fg"><label>Email</label><input type="email" id="aemail" placeholder="tu@email.com" onkeydown="if(event.key==='Enter')login()"></div>
-    <div class="fg"><label>Contraseña</label><input type="password" id="apass" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()"></div>
-    <button class="btn bp" style="width:100%;padding:10px;font-size:13px;margin-top:2px" onclick="login()">Entrar</button>
-    <div style="font-size:10px;color:var(--tx3);text-align:center;margin-top:14px">Acceso restringido · Solo usuarios KLY</div>
+
+    <!-- Logo / título dinámico -->
+    <div class="alogo-wrap">
+      <img id="auth-logo-img" class="alogo-img" src="" alt="" style="display:none">
+      <div id="auth-logo-txt" class="alogo-txt">KLY</div>
+      <div id="auth-subtitulo" class="asub">Sistema de Gestión Inmobiliaria</div>
+    </div>
+
+    <!-- Panel login (default) -->
+    <div id="auth-panel-login">
+      <div class="aerr" id="aerr"></div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:10px;color:rgba(255,255,255,.4);letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:6px">Email</label>
+        <input class="ainput" type="email" id="aemail" placeholder="tu@email.com" onkeydown="if(event.key==='Enter')login()">
+      </div>
+      <div style="margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label style="font-size:10px;color:rgba(255,255,255,.4);letter-spacing:1.5px;text-transform:uppercase">Contraseña</label>
+          <button class="alink" onclick="showAuthPanel('recovery')">¿Olvidaste tu contraseña?</button>
+        </div>
+        <input class="ainput" type="password" id="apass" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()">
+      </div>
+      <button class="abtn abtn-primary" id="btn-login" onclick="login()">Entrar</button>
+      <div class="afooter" id="auth-footer-txt">Acceso restringido</div>
+    </div>
+
+    <!-- Panel recuperar contraseña -->
+    <div id="auth-panel-recovery" style="display:none">
+      <div class="aerr" id="aerr-rec"></div>
+      <div class="aok" id="aok-rec"></div>
+      <div style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:20px;line-height:1.6">
+        Ingresá tu email y te mandamos un link para restablecer tu contraseña.
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:10px;color:rgba(255,255,255,.4);letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:6px">Email</label>
+        <input class="ainput" type="email" id="arec-email" placeholder="tu@email.com" onkeydown="if(event.key==='Enter')sendRecovery()">
+      </div>
+      <button class="abtn abtn-primary" id="btn-rec" onclick="sendRecovery()">Enviar link de recuperación</button>
+      <button class="abtn abtn-ghost" onclick="showAuthPanel('login')">← Volver al login</button>
+    </div>
+
   </div>
 </div>
 
@@ -856,15 +910,93 @@ function roiDisplay(pf) {
 //
 // AUTH
 //
+// ── AUTH BRANDING ────────────────────────────────────────────────
+async function loadAuthBranding() {
+  try {
+    // Query publica — usa la key anon, sin autenticacion
+    const res = await fetch(
+      SUPA_URL + '/rest/v1/configuracion_empresa?select=login_titulo,login_subtitulo,login_logo_url,color_primario,color_fondo&limit=1',
+      { headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY } }
+    );
+    const rows = await res.json();
+    const cfg  = rows?.[0] || {};
+
+    // Color primario → CSS variable para toda la pantalla de login
+    const color = cfg.color_primario || '#f5d020';
+    const fondo = cfg.color_fondo    || '#0a0a0a';
+    document.documentElement.style.setProperty('--auth-color', color);
+    document.getElementById('auth').style.background = fondo;
+
+    // Logo o texto
+    const logoImg = $('auth-logo-img');
+    const logoTxt = $('auth-logo-txt');
+    if (cfg.login_logo_url) {
+      logoImg.src = cfg.login_logo_url;
+      logoImg.style.display = 'block';
+      logoTxt.style.display = 'none';
+    } else {
+      logoTxt.textContent = cfg.login_titulo || 'KLY';
+      logoTxt.style.display = 'block';
+    }
+
+    // Subtítulo y footer
+    const sub = $('auth-subtitulo');
+    if (sub) sub.textContent = cfg.login_subtitulo || '';
+    const footer = $('auth-footer-txt');
+    if (footer) footer.textContent = 'Acceso restringido · ' + (cfg.login_titulo || 'KLY');
+
+    // Botón color
+    const btn = $('btn-login');
+    if (btn) btn.style.background = color;
+
+  } catch(e) {
+    console.warn('Branding load error:', e.message);
+  }
+}
+
+function showAuthPanel(panel) {
+  $('auth-panel-login').style.display    = panel === 'login'    ? '' : 'none';
+  $('auth-panel-recovery').style.display = panel === 'recovery' ? '' : 'none';
+  // Clear errors
+  ['aerr','aerr-rec','aok-rec'].forEach(id => {
+    const el = $(id); if (el) el.style.display = 'none';
+  });
+}
+
 async function login() {
   const email = vOf('aemail'), pass = vOf('apass');
   const ee = $('aerr'); ee.style.display = 'none';
-  if (!email || !pass) { ee.textContent = 'Completa email y contrasena'; ee.style.display = 'block'; return; }
-  showLoad();
+  if (!email || !pass) {
+    ee.textContent = 'Completá email y contraseña';
+    ee.style.display = 'block'; return;
+  }
+  const btn = $('btn-login');
+  if (btn) { btn.disabled = true; btn.textContent = 'Entrando...'; }
   const { data, error } = await SB.auth.signInWithPassword({ email, password: pass });
-  hideLoad();
-  if (error) { ee.textContent = error.message; ee.style.display = 'block'; return; }
+  if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
+  if (error) {
+    ee.textContent = error.message === 'Invalid login credentials'
+      ? 'Email o contraseña incorrectos'
+      : error.message;
+    ee.style.display = 'block'; return;
+  }
   await initApp(data.user);
+}
+
+async function sendRecovery() {
+  const email = vOf('arec-email');
+  const ee = $('aerr-rec'), ok = $('aok-rec');
+  ee.style.display = 'none'; ok.style.display = 'none';
+  if (!email) { ee.textContent = 'Ingresá tu email'; ee.style.display = 'block'; return; }
+  const btn = $('btn-rec');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+  const { error } = await SB.auth.resetPasswordForEmail(email, {
+    redirectTo: location.origin + '/?reset=true'
+  });
+  if (btn) { btn.disabled = false; btn.textContent = 'Enviar link de recuperación'; }
+  if (error) { ee.textContent = error.message; ee.style.display = 'block'; return; }
+  ok.textContent = 'Link enviado. Revisá tu email (y el spam).';
+  ok.style.display = 'block';
 }
 async function logout() { await SB.auth.signOut(); location.reload(); }
 
