@@ -1211,7 +1211,10 @@ function rDash() {
     <div class="card">
       <div class="cl">Utilidad realizada</div>
       <div class="cv ${(k?.utilidad_total_usd || 0) >= 0 ? 'pos' : 'neg'}">${fU(k?.utilidad_total_usd)}</div>
-      <div class="csub">KLY: ${fU(k?.ganancia_kly_usd)}</div>
+      <div class="csub" style="line-height:1.7">
+        KLY real: <b style="color:var(--acc2)">${fU(k?.ganancia_real_kly_usd ?? k?.ganancia_kly_usd)}</b>
+        ${(k?.ganancia_real_kly_usd != null && k?.ganancia_real_kly_usd !== k?.ganancia_kly_usd) ? `<span style="color:var(--tx3)"> · bruto ${fU(k?.ganancia_kly_usd)}</span>` : ''}
+      </div>
     </div>
     <div class="card">
       <div class="cl">ROI promedio (vendidos)</div>
