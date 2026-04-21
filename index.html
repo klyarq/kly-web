@@ -27,6 +27,9 @@ body.light{
 html,body{height:100%;overflow:hidden;font-family:var(--ff);font-size:13px;}
 body{background:var(--bg);color:var(--tx);display:flex;overflow:hidden;}
 
+/* APP layout — row on desktop */
+#app { flex-direction: row; }
+
 /* MOBILE ELEMENTS — hidden by default on desktop */
 #mob-header { display: none; }
 #mob-drawer { display: none; }
@@ -1283,7 +1286,7 @@ async function initApp(user) {
     <button class="btn bg bs" style="width:100%;margin-top:5px;" onclick="logout()">Cerrar sesion</button></div>`;
   $('auth').style.display = 'none';
   $('app').style.display = 'flex';
-  $('app').style.flexDirection = 'row';
+  // flexDirection controlled by CSS media queries (row on desktop, column on mobile)
   applyTheme();
   loadTramosLocales();
   await loadAll();
