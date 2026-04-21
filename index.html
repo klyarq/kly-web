@@ -37,9 +37,8 @@ body{background:var(--bg);color:var(--tx);display:flex;overflow:hidden;}
 #mob-bottom-nav { display: none; }
 
 /* AUTH */
-#auth{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;}
 /* LOGIN */
-#auth{display:flex;align-items:center;justify-content:center;min-height:100vh;width:100%;position:relative;overflow:hidden;background:var(--auth-bg,#0a0a0a);}
+#auth{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--auth-bg,#0a0a0a);overflow:hidden;z-index:9999;}
 #auth-bg-pattern{position:absolute;inset:0;pointer-events:none;opacity:.4;background-image:radial-gradient(circle at 20% 50%,var(--auth-color,#f5d020)08 0%,transparent 50%),radial-gradient(circle at 80% 20%,var(--auth-color,#f5d020)05 0%,transparent 40%);}
 #auth-side{display:none;}
 .abox{position:relative;z-index:2;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:48px 44px;width:420px;max-width:95vw;backdrop-filter:blur(20px);}
@@ -402,6 +401,24 @@ select option{background:var(--s2);}
   /* Page area */
   #page { padding: 14px 14px 72px; flex: 1; overflow-y: auto; min-height: 0; }
 
+  /* LOGIN en mobile — fullscreen centrado */
+  #auth {
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  .abox {
+    width: 100% !important;
+    max-width: 420px !important;
+    padding: 36px 28px !important;
+    border-radius: 20px !important;
+    box-sizing: border-box;
+    margin: 0 auto;
+  }
+  .alogo-txt { font-size: 34px !important; }
+  .asub { font-size: 9px !important; margin-bottom: 28px !important; }
+
   /* Grillas → 1 o 2 columnas */
   .g2, .g3, .g4, .g5 { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
   .g2.solo, .g3.solo { grid-template-columns: 1fr !important; }
@@ -457,6 +474,8 @@ select option{background:var(--s2);}
 @media (max-width: 380px) {
   .g2, .g3, .g4 { grid-template-columns: 1fr !important; }
   #page { padding: 10px 10px 0; }
+  .abox { padding: 24px 16px !important; }
+  .alogo-txt { font-size: 28px !important; }
 }
 </style>
 </head>
