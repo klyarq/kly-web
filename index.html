@@ -1834,8 +1834,8 @@ function rProys() {
   const ESTADOS = ['en_analisis','comprado','en_obra','a_la_venta','vendido','liquidado'];
   const ELABELS = { en_analisis:'En analisis', comprado:'Comprado', en_obra:'En obra', a_la_venta:'A la venta', vendido:'Vendido', liquidado:'Terminado' };
 
-  const activos    = S.proyFinanciero.filter(pf => pf.estado !== 'liquidado' && (!q || pf.nombre.toLowerCase().includes(q) || (pf.direccion||'').toLowerCase().includes(q)));
-  const terminados = S.proyFinanciero.filter(pf => pf.estado === 'liquidado'  && (!q || pf.nombre.toLowerCase().includes(q) || (pf.direccion||'').toLowerCase().includes(q)));
+  const activos    = S.proyFinanciero.filter(pf => pf.estado !== 'liquidado');
+  const terminados = S.proyFinanciero.filter(pf => pf.estado === 'liquidado');
 
   const renderPF = (pf) => `
     <div data-pf-card data-nombre="${pf.nombre.toLowerCase()}" data-dir="${(pf.direccion||'').toLowerCase()}" style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);margin-bottom:8px">
