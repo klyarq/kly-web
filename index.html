@@ -286,8 +286,12 @@ select option{background:var(--s2);}
   /* Ocultar sidebar en mobile */
   #sb { display: none !important; }
 
-  /* App ocupa toda la pantalla */
-  #app { flex-direction: column; height: 100vh; overflow: hidden; }
+  /* App en mobile es columna vertical */
+  #app { display: flex !important; flex-direction: column; width: 100% !important; }
+  /* El div que tiene sb+tbar+page ocupa todo el espacio */
+  #app > div:not(#mob-header):not(#mob-drawer):not(#mob-bottom-nav) {
+    flex: 1; display: flex; flex-direction: row; overflow: hidden; min-height: 0;
+  }
 
   /* Header mobile */
   #mob-header {
@@ -387,7 +391,7 @@ select option{background:var(--s2);}
   .mob-bn:active { opacity: .7; }
 
   /* Page area */
-  #page { padding: 14px 14px 0; flex: 1; overflow-y: auto; }
+  #page { padding: 14px 14px 72px; flex: 1; overflow-y: auto; min-height: 0; }
 
   /* Grillas → 1 o 2 columnas */
   .g2, .g3, .g4, .g5 { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
@@ -520,7 +524,7 @@ select option{background:var(--s2);}
 </div>
 
 <!-- ═══════ APP ═══════ -->
-<div id="app" style="display:none;width:100%;height:100vh;overflow:hidden;flex-direction:column">
+<div id="app" style="display:none;width:100%;height:100vh;overflow:hidden">
 <!-- MOBILE HEADER -->
 <div id="mob-header" style="display:none">
   <div id="mob-logo">KLY</div>
@@ -603,6 +607,14 @@ select option{background:var(--s2);}
     <div class="tbr" id="tbr"></div>
   </div>
   <div id="page"></div>
+  <!-- MOBILE BOTTOM NAV -->
+  <div id="mob-bottom-nav" style="display:none;flex-shrink:0">
+    <button class="mob-bn" id="mbn-dash"   onclick="mobGo('dash')">   <span class="mob-bn-ic">◈</span>Inicio</button>
+    <button class="mob-bn" id="mbn-proy"   onclick="mobGo('proy')">   <span class="mob-bn-ic">⬡</span>Proyectos</button>
+    <button class="mob-bn" id="mbn-caja"   onclick="mobGo('caja')">   <span class="mob-bn-ic">◎</span>Caja</button>
+    <button class="mob-bn" id="mbn-inv"    onclick="mobGo('inv')">    <span class="mob-bn-ic">◈</span>Inversores</button>
+    <button class="mob-bn" id="mbn-menu"   onclick="toggleMobDrawer()"><span class="mob-bn-ic">☰</span>Más</button>
+  </div>
 </div>
 
 </div><!-- /app -->
@@ -1463,10 +1475,12 @@ function setupMobile() {
   const mobile = isMobile();
   const header = $('mob-header');
   const bottomNav = $('mob-bottom-nav');
-  const sb = $('sb');
   if (header)    header.style.display    = mobile ? 'flex' : 'none';
   if (bottomNav) bottomNav.style.display = mobile ? 'flex' : 'none';
-  if (sb)        sb.style.display        = mobile ? 'none' : '';
+  // In desktop the CSS @media handles sb visibility — don't set inline style
+  // Only set flex-direction on the inner wrapper
+  const wrapper = document.querySelector('#app > div:not(#mob-header):not(#mob-drawer)');
+  if (wrapper) wrapper.style.flex = '1';
   // Load logo/title from branding
   const cfg = S.cfg || {};
   const empresa = cfg.nombre_empresa || 'KLY';
