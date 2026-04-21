@@ -1492,7 +1492,7 @@ function setupMobile() {
 
 window.addEventListener('resize', () => {
   setupMobile();
-  updateMobNav(spag || 'dash');
+  updateMobNav(pg || 'dash');
 });
 
 function render() {
@@ -1528,7 +1528,7 @@ function render() {
   }
   $('tbr').innerHTML = (acts[pg] || '') + extra;
   const map = { dash: rDash, proy: rProys, pref: rPref, caja: rCaja, socios: rSocios, inv: rInv, inmob: rInmob, oficina: rOficina, redes: rRedes, admin: rAdmin, chica: rCajaChica };
-  updateMobNav(spag);
+  updateMobNav(pg);
   $('page').innerHTML = (map[pg] || rDash)();
   // Post-render: bind inline editing
   if (pg === 'proy' && spid && stab === 'ga') bindInlineEdit();
