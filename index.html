@@ -27,6 +27,12 @@ body.light{
 html,body{height:100%;overflow:hidden;font-family:var(--ff);font-size:13px;}
 body{background:var(--bg);color:var(--tx);display:flex;overflow:hidden;}
 
+/* MOBILE ELEMENTS — hidden by default on desktop */
+#mob-header { display: none; }
+#mob-drawer { display: none; }
+#mob-drawer.open { display: block; }
+#mob-bottom-nav { display: none; }
+
 /* AUTH */
 #auth{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;}
 /* LOGIN */
@@ -323,7 +329,7 @@ select option{background:var(--s2);}
     display: none;
     position: fixed; inset: 0; z-index: 100;
   }
-  #mob-drawer.open { display: block; }
+
   #mob-drawer-bg {
     position: absolute; inset: 0;
     background: rgba(0,0,0,.6);
@@ -1472,21 +1478,13 @@ function updateMobNav(page) {
 }
 
 function setupMobile() {
-  const mobile = isMobile();
-  const header = $('mob-header');
-  const bottomNav = $('mob-bottom-nav');
-  if (header)    header.style.display    = mobile ? 'flex' : 'none';
-  if (bottomNav) bottomNav.style.display = mobile ? 'flex' : 'none';
-  // In desktop the CSS @media handles sb visibility — don't set inline style
-  // Only set flex-direction on the inner wrapper
-  const wrapper = document.querySelector('#app > div:not(#mob-header):not(#mob-drawer)');
-  if (wrapper) wrapper.style.flex = '1';
-  // Load logo/title from branding
+  // CSS handles show/hide via media queries
+  // Just update the logo text from branding
   const cfg = S.cfg || {};
-  const empresa = cfg.nombre_empresa || 'KLY';
+  const empresa = (cfg.nombre_empresa || 'KLY').split(' ')[0];
   const el1 = $('mob-logo'), el2 = $('mob-drawer-logo');
-  if (el1) el1.textContent = empresa.split(' ')[0];
-  if (el2) el2.textContent = empresa.split(' ')[0];
+  if (el1) el1.textContent = empresa;
+  if (el2) el2.textContent = empresa;
 }
 
 window.addEventListener('resize', () => {
