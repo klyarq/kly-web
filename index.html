@@ -716,7 +716,19 @@ select option{background:var(--s2);}
   <div class="mt">MOVIMIENTO DE CAJA</div>
   <div class="fr"><div class="fg"><label>Tipo</label><select id="mT"><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></div><div class="fg"><label>Moneda</label><select id="mMon"><option>USD</option><option>ARS</option></select></div></div>
   <div class="fr"><div class="fg"><label>Concepto</label><input id="mC"></div><div class="fg"><label>Monto</label><input type="number" id="mMo"></div></div>
-  <div class="fr"><div class="fg"><label>TC (si ARS — actualiza global)</label><input type="number" id="mTC" placeholder="1200"></div><div class="fg"><label>Categoría</label><select id="mCat"><option>Compra</option><option>Obra</option><option>Venta</option><option>Comisión</option><option>Honorarios</option><option>Impuestos</option><option>Inversores</option><option>Oficina</option><option>Reserva</option><option>Varios</option></select></div></div>
+  <div class="fg"><label>Categoría</label><select id="mCat" style="width:100%">
+    <option value="">Sin categoría</option>
+    <option value="compra">Compra propiedad</option>
+    <option value="obra">Gastos de obra</option>
+    <option value="venta">Venta / cobranza</option>
+    <option value="honorarios">Honorarios</option>
+    <option value="impuestos">Impuestos / escribanía</option>
+    <option value="oficina">Gastos de oficina</option>
+    <option value="inversion">Inversión recibida</option>
+    <option value="devolucion">Devolución a inversor</option>
+    <option value="otros">Otros</option>
+  </select></div>
+  <div class="fr"><div class="fg"><label>TC (si ARS — actualiza global)</label><input type="number" id="mTC" placeholder="1200"></div><div class="fg"><label>Categoría</label><select id="mCat"><option value="">— Categoría —</option><option>Compra</option><option>Obra</option><option>Venta</option><option>Comisión inmobiliaria</option><option>Honorarios</option><option>Impuestos</option><option>Gastos oficina</option><option>Inversores</option><option>Caja chica</option><option>Otros</option></select></div></div>
   <div class="fr"><div class="fg"><label>Proyecto</label><select id="mP"><option value="">— General —</option></select></div><div class="fg"><label>Socio que pagó</label><select id="mS"><option value="">— Empresa —</option><option>Franco</option><option>Mateo</option><option>Julian</option></select></div></div>
   <div class="fr"><div class="fg"><label>Fecha</label><input type="date" id="mF"></div><div class="fg"><label>Notas</label><input id="mN"></div></div>
   <div class="fa"><button class="btn bg" onclick="CM('mo-m')">Cancelar</button><button class="btn bp" onclick="saveMov()">Guardar</button></div>
@@ -1813,8 +1825,9 @@ function rProys() {
   const ESTADOS = ['en_analisis','comprado','en_obra','a_la_venta','vendido','liquidado'];
   const ELABELS = { en_analisis:'En analisis', comprado:'Comprado', en_obra:'En obra', a_la_venta:'A la venta', vendido:'Vendido', liquidado:'Terminado' };
 
-  const activos    = S.proyFinanciero.filter(pf => pf.estado !== 'liquidado');
-  const terminados = S.proyFinanciero.filter(pf => pf.estado === 'liquidado');
+  const q = ($('proy-search')?.value || '').toLowerCase().trim();
+  const activos    = S.proyFinanciero.filter(pf => pf.estado !== 'liquidado' && (!q || pf.nombre.toLowerCase().includes(q) || (pf.direccion||'').toLowerCase().includes(q)));
+  const terminados = S.proyFinanciero.filter(pf => pf.estado === 'liquidado'  && (!q || pf.nombre.toLowerCase().includes(q) || (pf.direccion||'').toLowerCase().includes(q)));
 
   const renderPF = (pf) => `
     <div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);margin-bottom:8px">
@@ -1837,6 +1850,11 @@ function rProys() {
     </div>`;
 
   return `<div>
+    <div style="margin-bottom:12px">
+      <input id="proy-search" class="ainput" placeholder="Buscar proyecto..." 
+        oninput="render()" 
+        style="max-width:280px;padding:8px 12px;font-size:12px">
+    </div>
     ${activos.map(renderPF).join('')}
     ${!activos.length && !terminados.length ? '<div class="empty"><h3>Sin proyectos</h3></div>' : ''}
     ${terminados.length ? `
@@ -3916,7 +3934,14 @@ function rMvList(list) {
 }
 function filtCaja(pid) {
   const el = $('mvlist'); if (!el) return;
-  el.innerHTML = rMvList(pid ? S.movimientos.filter(m => m.proyecto_id === pid) : S.movimientos);
+  const q    = ($('caja-search')?.value || '').toLowerCase().trim();
+  const tipo = $('caja-tipo')?.value || 'todos';
+  const cat  = $('caja-cat')?.value || '';
+  let list   = pid ? S.movimientos.filter(m => m.proyecto_id === pid) : S.movimientos;
+  if (q)              list = list.filter(m => (m.concepto||'').toLowerCase().includes(q));
+  if (tipo !== 'todos') list = list.filter(m => m.tipo === tipo);
+  if (cat)            list = list.filter(m => m.categoria === cat);
+  el.innerHTML = rMvList(list);
 }
 
 
@@ -4353,25 +4378,51 @@ function actualizarDistGan() {
 function recalcDist() {
   const monto = parseFloat(document.getElementById('dgMonto').value) || 0;
   const usrs  = S.usuarios_all || [];
-  const partes = usrs.length > 0 ? monto / usrs.length : 0;
-  document.getElementById('dg-socios').innerHTML = monto > 0 && usrs.length > 0 ? `
-    <div class="cl" style="margin-bottom:8px">Reparto igualitario entre socios</div>
-    ${usrs.map(u => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--b1)">
-      <span style="font-size:12px;font-weight:600">${u.nombre}</span>
-      <span class="acc" style="font-family:var(--fm);font-size:13px">${fU(partes)}</span>
+  if (!monto || !usrs.length) { document.getElementById('dg-socios').innerHTML = ''; return; }
+  // Default pct: equal split
+  const pctIgual = +(100 / usrs.length).toFixed(2);
+  const el = document.getElementById('dg-socios');
+  // Check if already rendered with inputs
+  const inputs = el.querySelectorAll('.socio-pct-inp');
+  if (inputs.length === usrs.length) {
+    // Just update amounts
+    let totalPct = 0;
+    inputs.forEach((inp, i) => {
+      const pct = parseFloat(inp.value) || 0;
+      totalPct += pct;
+      const amtEl = document.getElementById('dg-amt-' + i);
+      if (amtEl) amtEl.textContent = fU(monto * pct / 100);
+    });
+    const warn = document.getElementById('dg-pct-warn');
+    if (warn) { warn.style.display = Math.abs(totalPct - 100) > 0.1 ? '' : 'none'; }
+    return;
+  }
+  // Render with editable pct inputs
+  el.innerHTML = `
+    <div class="cl" style="margin-bottom:8px">Distribución por socio (% editable)</div>
+    ${usrs.map((u, i) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--b1);gap:10px">
+      <span style="font-size:12px;font-weight:600;flex:1">${u.nombre}</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input class="socio-pct-inp" type="number" min="0" max="100" step="0.01" value="${pctIgual}"
+          style="width:65px;background:var(--s2);border:1px solid var(--b1);border-radius:4px;padding:4px 6px;color:#fff;text-align:right;font-size:12px"
+          oninput="recalcDist()">
+        <span style="font-size:10px;color:var(--tx3)">%</span>
+        <span class="acc" style="font-family:var(--fm);font-size:13px;min-width:70px;text-align:right" id="dg-amt-${i}">${fU(monto * pctIgual / 100)}</span>
+      </div>
     </div>`).join('')}
+    <div id="dg-pct-warn" style="display:none;margin-top:8px;font-size:10px;color:var(--err);font-weight:600">⚠ Los % deben sumar 100%</div>
     <div style="margin-top:8px;font-size:10px;color:var(--tx3)">
       Resta en KLY: <span class="pos" style="font-family:var(--fm)">${fU((parseFloat(document.getElementById('dg-disp')?.textContent?.replace(/[^0-9.-]/g,''))||0) - monto)}</span>
-    </div>` : '';
+    </div>`;
 }
 
 async function confirmarDistGan() {
-  const pid     = document.getElementById('dgProy').value;
-  const monto   = parseFloat(document.getElementById('dgMonto').value) || 0;
-  const fecha   = document.getElementById('dgFecha').value || td();
+  const pid      = document.getElementById('dgProy').value;
+  const monto    = parseFloat(document.getElementById('dgMonto').value) || 0;
+  const fecha    = document.getElementById('dgFecha').value || td();
   const concepto = document.getElementById('dgConcepto').value || 'Distribucion de ganancia';
-  const usrs    = S.usuarios_all || [];
+  const usrs     = S.usuarios_all || [];
 
   if (!pid) return toast('Selecciona un proyecto', 'er');
   if (!monto || monto <= 0) return toast('Ingresa un monto', 'er');
@@ -4383,17 +4434,20 @@ async function confirmarDistGan() {
   const disp = (pf?.ganancia_kly_usd||0) - dist;
   if (monto > disp + 0.01) return toast(`El monto supera el disponible (${fU(disp)})`, 'er');
 
-  const partePorSocio = monto / usrs.length;
+  // Leer % por socio desde los inputs
+  const inputs = document.querySelectorAll('.socio-pct-inp');
+  let pcts = usrs.map((_, i) => parseFloat(inputs[i]?.value) || (100/usrs.length));
+  const totalPct = pcts.reduce((s,p)=>s+p,0);
+  if (Math.abs(totalPct - 100) > 0.5) return toast(`Los porcentajes deben sumar 100% (suma actual: ${totalPct.toFixed(1)}%)`, 'er');
 
   showLoad();
-  // Insertar un movimiento por socio
-  const rows = usrs.map(u => ({
+  const rows = usrs.map((u, i) => ({
     empresa_id : S.eid,
     user_id    : u.id,
     proyecto_id: pid,
     tipo       : 'ganancia',
-    concepto   : concepto,
-    monto      : Math.round(partePorSocio * 100) / 100,
+    concepto,
+    monto      : Math.round(monto * pcts[i] / 100 * 100) / 100,
     moneda     : 'USD',
     tc_usado   : S.cfg.tc || 1200,
     reembolsado: false,
@@ -4404,7 +4458,8 @@ async function confirmarDistGan() {
   if (error) return toast(error.message, 'er');
   CM('mo-dist-gan');
   await loadAll(); render();
-  toast(`Distribuido ${fU(monto)} entre ${usrs.length} socios (${fU(partePorSocio)} c/u)`);
+  const resumen = usrs.map((u,i)=>`${u.nombre}: ${fU(rows[i].monto)}`).join(' · ');
+  toast(`Distribuido ${fU(monto)} — ${resumen}`);
 }
 
 //
@@ -8095,8 +8150,33 @@ function rCajaChica() {
   </div>
 
   <div class="card">
-    <div class="sh">
+    <div class="sh" style="flex-wrap:wrap;gap:8px">
       <div class="st">Movimientos</div>
+      <div style="display:flex;gap:8px;flex:1;min-width:200px">
+        <input id="caja-search" placeholder="🔍 Buscar concepto..." oninput="filtCaja($('fproy')?.value)"
+          style="flex:1;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:5px 10px;color:var(--tx1);font-size:11px;font-family:var(--ff);outline:none">
+        <select id="caja-tipo" onchange="filtCaja($('fproy')?.value)"
+          style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:5px 8px;color:var(--tx2);font-size:11px;cursor:pointer">
+          <option value="todos">Todos</option>
+          <option value="ingreso">↑ Ingresos</option>
+          <option value="egreso">↓ Egresos</option>
+        </select>
+        <select id="caja-cat" onchange="filtCaja($('fproy')?.value)"
+          style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:5px 8px;color:var(--tx2);font-size:11px;cursor:pointer">
+          <option value="">Categoría</option>
+          <option value="compra">Compra</option>
+          <option value="obra">Obra</option>
+          <option value="venta">Venta</option>
+          <option value="honorarios">Honorarios</option>
+          <option value="impuestos">Impuestos</option>
+          <option value="oficina">Oficina</option>
+          <option value="inversion">Inversión</option>
+          <option value="devolucion">Devolución</option>
+          <option value="otros">Otros</option>
+        </select>
+      </div>
+    </div>
+      <div class="st" style="display:none">Movimientos</div>
       <div style="font-size:10px;color:var(--tx3)">Los ingresos generan egreso automático en Caja Global</div>
     </div>
     <div class="tw"><table>
