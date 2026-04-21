@@ -297,10 +297,8 @@ select option{background:var(--s2);}
   /* ── APP columna vertical ── */
   #app { display: flex !important; flex-direction: column; }
 
-  /* ── Wrapper interno (sb+tbar+page) ocupa espacio restante ── */
-  #app > div:not(#mob-header):not(#mob-drawer):not(#mob-bottom-nav) {
-    flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0;
-  }
+  /* ── #main ocupa espacio restante ── */
+  #main { flex: 1; min-height: 0; }
 
   /* ── HEADER mobile fijo arriba ── */
   #mob-header {
@@ -309,13 +307,21 @@ select option{background:var(--s2);}
     top: 0 !important; left: 0 !important; right: 0 !important;
     height: 52px !important;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 16px;
+    padding: 0 14px;
+    gap: 8px;
     background: var(--s1);
     border-bottom: 1px solid var(--b1);
     z-index: 200 !important;
     box-sizing: border-box;
   }
+  #mob-logo { font-size: 16px; font-weight: 900; color: var(--acc); letter-spacing: 2px; flex-shrink: 0; }
+  #mob-page-title {
+    font-size: 10px; color: var(--tx3);
+    letter-spacing: 1.5px; text-transform: uppercase;
+    position: absolute; left: 50%; transform: translateX(-50%);
+    white-space: nowrap; pointer-events: none;
+  }
+  #mob-menu-btn { line-height: 1; }
   #mob-logo { font-size: 18px; font-weight: 900; color: var(--acc); letter-spacing: 2px; }
   #mob-menu-btn {
     background: none; border: none; color: var(--tx1);
@@ -328,8 +334,9 @@ select option{background:var(--s2);}
     white-space: nowrap;
   }
 
-  /* ── TBAR oculto (mob-header ya muestra el título) ── */
-  #tbar { display: none !important; }
+  /* ── Barras de desktop ocultas en mobile ── */
+  #statusbar { display: none !important; }
+  #topbar    { display: none !important; }
 
   /* ── PAGE: espacio para header fijo arriba y nav fijo abajo ── */
   #page {
@@ -526,7 +533,11 @@ select option{background:var(--s2);}
 <div id="mob-header">
   <div id="mob-logo">KLY</div>
   <span id="mob-page-title"></span>
-  <button id="mob-menu-btn" onclick="toggleMobDrawer()">☰</button>
+  <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+    <span style="font-size:10px;color:var(--tx3)">TC <span id="mob-tc" style="color:var(--acc);font-family:var(--fm);font-weight:700">—</span></span>
+    <button onclick="toggleTheme()" style="background:none;border:1px solid var(--b1);color:var(--tx2);border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;line-height:1.4">◑</button>
+    <button id="mob-menu-btn" onclick="toggleMobDrawer()" style="background:none;border:none;color:var(--tx1);font-size:22px;cursor:pointer;padding:0 0 0 4px;line-height:1">☰</button>
+  </div>
 </div>
 
 <!-- MOBILE DRAWER -->
@@ -1364,7 +1375,7 @@ async function loadAll() {
       if (cfgRemote.params) S.cfg.params = cfgRemote.params;
     }
   } catch(e) { /* tabla no existe aun — ignorar */ }
-  $('tcdisplay').textContent = fA(S.cfg.tc);
+  $('tcdisplay').textContent = fA(S.cfg.tc); const _mt=$('mob-tc'); if(_mt) _mt.textContent='$'+Math.round(S.cfg.tc).toLocaleString('es-AR');
 
   // Badge alertas en statusbar
   const nAlertas = S.alertas.filter(a => a.nivel === 'warning').length;
@@ -1660,7 +1671,9 @@ function rProyTimeline(cf) {
 
 function rDash() {
   const k = S.dashKpis;
-  const featPF = S.proyFinanciero.find(p => p.proyecto_id === S.cfg.feat) || S.proyFinanciero.at(-1);
+  const featPF = S.proyFinanciero.find(p => p.proyecto_id === S.cfg.feat)
+    || S.proyFinanciero.find(p => !['vendido','liquidado'].includes(p.estado))
+    || S.proyFinanciero.at(-1);
   const nextPF = S.cfg.next ? S.proyFinanciero.find(p => p.proyecto_id === S.cfg.next) : null;
   const mx = Math.max(...S.proyFinanciero.map(p => Math.max(p.inversion_total_usd || 0, p.venta_neta_usd || 0, 1)), 1);
 
@@ -1697,9 +1710,9 @@ function rDash() {
       </div>
     </div>
     <div class="card">
-      <div class="cl">ROI promedio (vendidos)</div>
+      <div class="cl">ROI promedio (cerrados)</div>
       <div class="cv">${rpill(k?.roi_promedio_pct)}</div>
-      <div class="csub">vendidos y terminados</div>
+      <div class="csub">vendidos + terminados</div>
     </div>
   </div>
 
@@ -6405,7 +6418,7 @@ async function saveParams() {
     const saved = JSON.parse(localStorage.getItem('kly_cfg')||'{}');
     if (saved.anthropic_key) S.cfg.anthropic_key = saved.anthropic_key;
   } catch(e) {}
-  $('tcdisplay').textContent = fA(S.cfg.tc);
+  $('tcdisplay').textContent = fA(S.cfg.tc); const _mt=$('mob-tc'); if(_mt) _mt.textContent='$'+Math.round(S.cfg.tc).toLocaleString('es-AR');
   toast('Parametros guardados y sincronizados');
 }
 
@@ -6472,7 +6485,7 @@ async function fetchTC() {
     S.cfg.tc_fecha = new Date().toLocaleDateString('es-AR');
 
     // Actualizar display header
-    $('tcdisplay').textContent = fA(S.cfg.tc);
+    $('tcdisplay').textContent = fA(S.cfg.tc); const _mt=$('mob-tc'); if(_mt) _mt.textContent='$'+Math.round(S.cfg.tc).toLocaleString('es-AR');
 
     // Guardar en Supabase (sincroniza entre socios) + localStorage fallback
     const _cfgSync = { tc: S.cfg.tc, tc_blue: S.cfg.tc_blue, tc_oficial: S.cfg.tc_oficial, tc_fecha: S.cfg.tc_fecha, params: S.cfg.params };
@@ -8153,27 +8166,6 @@ function rCajaChica() {
 </div>
 
 <!-- MODAL — Importar CSV masivo -->
-<div class="mo" id="mo-import">
-  <div class="moc" style="max-width:560px">
-    <div class="moh">
-      <div class="mot" id="mo-import-title">Importar datos</div>
-      <button class="btn bg bs" onclick="CM('mo-import')">✕</button>
-    </div>
-    <div style="background:rgba(245,208,32,.06);border:1px solid rgba(245,208,32,.2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:10px;color:var(--tx2)">
-      <b>Pasos:</b> 1) Descargá la plantilla modelo con el botón <b>↓ Plantilla</b> · 2) Completá los datos en Excel · 3) Guardá como CSV · 4) Subí el archivo acá
-    </div>
-    <div class="fg" style="font-size:9px;color:var(--tx3);margin-bottom:6px" id="mo-import-info"></div>
-    <div class="fg">
-      <label>Archivo CSV</label>
-      <input type="file" id="mo-import-file" accept=".csv,.txt" onchange="onImportFileChange(this)" style="padding:8px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);cursor:pointer">
-    </div>
-    <div id="mo-import-preview" style="margin-bottom:12px"></div>
-    <div class="fa">
-      <button class="btn bg" onclick="CM('mo-import')">Cancelar</button>
-      <button class="btn bp" id="mo-import-btn" onclick="confirmarImport()" disabled>Importar</button>
-    </div>
-  </div>
-</div>
 </body>
 </html>
 
