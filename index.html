@@ -1543,6 +1543,11 @@ function render() {
   $('page').innerHTML = (map[pg] || rDash)();
   // Post-render: bind inline editing
   if (pg === 'proy' && spid && stab === 'ga') bindInlineEdit();
+  // Restore focus on project search after re-render
+  if (pg === 'proy' && !spid) {
+    const si = document.getElementById('proy-search');
+    if (si && si.value) { si.focus(); si.setSelectionRange(si.value.length, si.value.length); }
+  }
 }
 
 //
@@ -1689,11 +1694,15 @@ function rDash() {
   const nextPF = S.cfg.next ? S.proyFinanciero.find(p => p.proyecto_id === S.cfg.next) : null;
   const mx = Math.max(...S.proyFinanciero.map(p => Math.max(p.inversion_total_usd || 0, p.venta_neta_usd || 0, 1)), 1);
 
-  const alertsHTML = S.alertas.slice(0, 5).map(a => `
-    <div class="alert ${a.nivel === 'warning' ? 'warn' : 'info'}">
-      <span>${a.nivel === 'warning' ? '⚠' : 'ℹ'}</span>
-      <span><b>${a.proyecto_nombre}</b> — ${a.mensaje}${a.monto_usd ? ' · ' + fU(a.monto_usd) : ''}</span>
-    </div>`).join('');
+  const alertsHTML = S.alertas.length === 0 ? '' :
+    `<div class="card mb12" style="border-left:3px solid var(--warn,#f5a623)">
+      <div class="sh mb8"><div class="st" style="color:var(--warn,#f5a623)">⚠ Alertas (${S.alertas.length})</div></div>
+      ${S.alertas.slice(0, 5).map(a => `
+      <div class="alert ${a.nivel === 'warning' ? 'warn' : 'info'}" style="margin-bottom:6px">
+        <span>${a.nivel === 'warning' ? '⚠' : 'ℹ'}</span>
+        <span><b>${a.proyecto_nombre}</b> — ${a.mensaje}${a.monto_usd ? ' · ' + fU(a.monto_usd) : ''}</span>
+      </div>`).join('')}
+    </div>`;
 
   return `
   ${alertsHTML}
@@ -1825,12 +1834,11 @@ function rProys() {
   const ESTADOS = ['en_analisis','comprado','en_obra','a_la_venta','vendido','liquidado'];
   const ELABELS = { en_analisis:'En analisis', comprado:'Comprado', en_obra:'En obra', a_la_venta:'A la venta', vendido:'Vendido', liquidado:'Terminado' };
 
-  const q = ($('proy-search')?.value || '').toLowerCase().trim();
   const activos    = S.proyFinanciero.filter(pf => pf.estado !== 'liquidado' && (!q || pf.nombre.toLowerCase().includes(q) || (pf.direccion||'').toLowerCase().includes(q)));
   const terminados = S.proyFinanciero.filter(pf => pf.estado === 'liquidado'  && (!q || pf.nombre.toLowerCase().includes(q) || (pf.direccion||'').toLowerCase().includes(q)));
 
   const renderPF = (pf) => `
-    <div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);margin-bottom:8px">
+    <div data-pf-card data-nombre="${pf.nombre.toLowerCase()}" data-dir="${(pf.direccion||'').toLowerCase()}" style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);margin-bottom:8px">
       <div style="padding:13px 17px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="go('proy','${pf.proyecto_id}')">
         <div>
           <div style="font-size:13px;font-weight:700">${edot(pf.estado)}${pf.nombre}</div>
@@ -1851,9 +1859,9 @@ function rProys() {
 
   return `<div>
     <div style="margin-bottom:12px">
-      <input id="proy-search" class="ainput" placeholder="Buscar proyecto..." 
-        oninput="render()" 
-        style="max-width:280px;padding:8px 12px;font-size:12px">
+      <input id="proy-search" placeholder="🔍 Buscar proyecto..." 
+        oninput="filtrarProys(this.value)"
+        style="max-width:280px;padding:8px 12px;font-size:12px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);color:var(--tx1);font-family:var(--ff);outline:none">
     </div>
     ${activos.map(renderPF).join('')}
     ${!activos.length && !terminados.length ? '<div class="empty"><h3>Sin proyectos</h3></div>' : ''}
@@ -1873,6 +1881,15 @@ function rProys() {
   </div>`;
 }
 
+
+function filtrarProys(q) {
+  q = (q || '').toLowerCase().trim();
+  document.querySelectorAll('[data-pf-card]').forEach(card => {
+    const nombre = (card.dataset.nombre || '').toLowerCase();
+    const dir    = (card.dataset.dir || '').toLowerCase();
+    card.style.display = (!q || nombre.includes(q) || dir.includes(q)) ? '' : 'none';
+  });
+}
 function toggleTerminados() {
   const el = $('terminados-list');
   const arrow = $('terminados-arrow');
@@ -1994,6 +2011,7 @@ function rPOv(pf) {
     <div class="card">
       <div class="sh"><div class="st" style="font-size:12px">Etapas de compra</div>
         <button class="btn bg bs" onclick="editP('${pf.proyecto_id}')">✎ Editar</button></div>
+      <button class="btn bg bs" style="margin-bottom:8px;font-size:10px" onclick="editP('${pf.proyecto_id}')">✎ Editar etapas</button>
       ${etapas.length ? `<table><thead><tr><th>Etapa</th><th>Monto USD</th><th>Fecha</th></tr></thead>
       <tbody>${etapas.map(e=>`<tr>
         <td class="b">${e.nombre||'—'}</td>
@@ -2001,7 +2019,7 @@ function rPOv(pf) {
         <td class="muted">${e.fecha||'—'}</td>
       </tr>`).join('')}
       <tr style="background:var(--s2)"><td>Total</td><td class="m acc">${fU(totalEtapas)}</td><td></td></tr>
-      </tbody></table>` : `<div class="empty" style="padding:12px"><h3>Sin etapas cargadas</h3></div>`}
+      </tbody></table>` : `<div style="padding:8px 0"><button class="btn bp bs" onclick="editP('${pf.proyecto_id}')">+ Agregar etapas de compra</button></div>`}
     </div>
     <div class="card">
       <div class="sh"><div class="st" style="font-size:12px">Gastos de compra</div></div>
@@ -3904,11 +3922,37 @@ function rCaja() {
 
   <!-- MOVIMIENTOS -->
   <div class="card">
-    <div class="sh"><div class="st">Movimientos</div>
-      <select onchange="filtCaja(this.value)" style="width:auto;padding:4px 9px;font-size:10px">
-        <option value="">Todos</option>
-        ${S.proyectos.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('')}
-      </select>
+    <div class="sh" style="flex-wrap:wrap;gap:8px">
+      <div class="st">Movimientos</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;flex:1">
+        <input id="caja-search" placeholder="🔍 Buscar concepto..."
+          oninput="filtCaja($('fproy')?.value)"
+          style="flex:1;min-width:140px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:5px 10px;color:var(--tx1);font-size:11px;font-family:var(--ff);outline:none">
+        <select id="caja-tipo" onchange="filtCaja($('fproy')?.value)"
+          style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:5px 8px;color:var(--tx2);font-size:11px;cursor:pointer">
+          <option value="todos">Todos</option>
+          <option value="ingreso">↑ Ingresos</option>
+          <option value="egreso">↓ Egresos</option>
+        </select>
+        <select id="caja-cat" onchange="filtCaja($('fproy')?.value)"
+          style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:5px 8px;color:var(--tx2);font-size:11px;cursor:pointer">
+          <option value="">Categoría</option>
+          <option value="compra">Compra</option>
+          <option value="obra">Obra</option>
+          <option value="venta">Venta</option>
+          <option value="honorarios">Honorarios</option>
+          <option value="impuestos">Impuestos</option>
+          <option value="oficina">Oficina</option>
+          <option value="inversion">Inversión</option>
+          <option value="devolucion">Devolución</option>
+          <option value="otros">Otros</option>
+        </select>
+        <select id="fproy" onchange="filtCaja(this.value)"
+          style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:5px 8px;color:var(--tx2);font-size:11px;cursor:pointer">
+          <option value="">Proyectos</option>
+          ${S.proyectos.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('')}
+        </select>
+      </div>
     </div>
     <div id="mvlist">${rMvList(S.movimientos)}</div>
   </div>`;
@@ -8152,29 +8196,7 @@ function rCajaChica() {
   <div class="card">
     <div class="sh" style="flex-wrap:wrap;gap:8px">
       <div class="st">Movimientos</div>
-      <div style="display:flex;gap:8px;flex:1;min-width:200px">
-        <input id="caja-search" placeholder="🔍 Buscar concepto..." oninput="filtCaja($('fproy')?.value)"
-          style="flex:1;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:5px 10px;color:var(--tx1);font-size:11px;font-family:var(--ff);outline:none">
-        <select id="caja-tipo" onchange="filtCaja($('fproy')?.value)"
-          style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:5px 8px;color:var(--tx2);font-size:11px;cursor:pointer">
-          <option value="todos">Todos</option>
-          <option value="ingreso">↑ Ingresos</option>
-          <option value="egreso">↓ Egresos</option>
-        </select>
-        <select id="caja-cat" onchange="filtCaja($('fproy')?.value)"
-          style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:5px 8px;color:var(--tx2);font-size:11px;cursor:pointer">
-          <option value="">Categoría</option>
-          <option value="compra">Compra</option>
-          <option value="obra">Obra</option>
-          <option value="venta">Venta</option>
-          <option value="honorarios">Honorarios</option>
-          <option value="impuestos">Impuestos</option>
-          <option value="oficina">Oficina</option>
-          <option value="inversion">Inversión</option>
-          <option value="devolucion">Devolución</option>
-          <option value="otros">Otros</option>
-        </select>
-      </div>
+  
     </div>
       <div class="st" style="display:none">Movimientos</div>
       <div style="font-size:10px;color:var(--tx3)">Los ingresos generan egreso automático en Caja Global</div>
