@@ -296,24 +296,27 @@ select option{background:var(--s2);}
 
   /* App en mobile es columna vertical */
   #app { display: flex !important; flex-direction: column; width: 100% !important; }
-  /* El div que tiene sb+tbar+page ocupa todo el espacio */
+  /* Wrapper interno ocupa el espacio restante */
   #app > div:not(#mob-header):not(#mob-drawer):not(#mob-bottom-nav) {
-    flex: 1; display: flex; flex-direction: row; overflow: hidden; min-height: 0;
+    flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0;
   }
+  /* Ocultar tbar (título duplicado) — mob-header ya lo muestra */
+  #tbar { display: none !important; }
+  /* Page ocupa todo el ancho */
+  #page { width: 100% !important; }
 
   /* Header mobile */
   #mob-header {
     display: flex !important;
+    position: fixed;
+    top: 0; left: 0; right: 0;
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
     height: 52px;
-    min-height: 52px;
     background: var(--s1);
     border-bottom: 1px solid var(--b1);
-    flex-shrink: 0;
-    position: relative;
-    z-index: 10;
+    z-index: 50;
   }
   #mob-logo { font-size: 18px; font-weight: 900; color: var(--acc); letter-spacing: 2px; }
   #mob-menu-btn {
@@ -376,10 +379,12 @@ select option{background:var(--s2);}
   /* Bottom navigation bar */
   #mob-bottom-nav {
     display: flex !important;
-    height: 56px; min-height: 56px;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 56px;
     background: var(--s1);
     border-top: 1px solid var(--b1);
-    flex-shrink: 0;
+    z-index: 50;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -399,7 +404,7 @@ select option{background:var(--s2);}
   .mob-bn:active { opacity: .7; }
 
   /* Page area */
-  #page { padding: 14px 14px 72px; flex: 1; overflow-y: auto; min-height: 0; }
+  #page { padding: 60px 14px 72px !important; flex: 1 !important; overflow-y: auto !important; min-height: 0 !important; width: 100% !important; box-sizing: border-box; }
 
   /* LOGIN en mobile — fullscreen centrado */
   #auth {
@@ -473,7 +478,7 @@ select option{background:var(--s2);}
 
 @media (max-width: 380px) {
   .g2, .g3, .g4 { grid-template-columns: 1fr !important; }
-  #page { padding: 10px 10px 0; }
+  #page { padding: 58px 10px 70px !important; }
   .abox { padding: 24px 16px !important; }
   .alogo-txt { font-size: 28px !important; }
 }
