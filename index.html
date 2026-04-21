@@ -277,6 +277,174 @@ select option{background:var(--s2);}
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--b1);border-radius:2px;}
+
+/* ═══════════════════════════════════════════════════
+   MOBILE RESPONSIVE — breakpoint 768px
+═══════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Ocultar sidebar en mobile */
+  #sb { display: none !important; }
+
+  /* App ocupa toda la pantalla */
+  #app { flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* Header mobile */
+  #mob-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    height: 52px;
+    min-height: 52px;
+    background: var(--s1);
+    border-bottom: 1px solid var(--b1);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+  }
+  #mob-logo { font-size: 18px; font-weight: 900; color: var(--acc); letter-spacing: 2px; }
+  #mob-menu-btn {
+    background: none; border: none; color: var(--tx1);
+    font-size: 20px; cursor: pointer; padding: 6px; line-height: 1;
+  }
+  #mob-page-title {
+    font-size: 12px; color: var(--tx3);
+    letter-spacing: 1.5px; text-transform: uppercase;
+    position: absolute; left: 50%; transform: translateX(-50%);
+  }
+
+  /* Drawer/menu lateral */
+  #mob-drawer {
+    display: none;
+    position: fixed; inset: 0; z-index: 100;
+  }
+  #mob-drawer.open { display: block; }
+  #mob-drawer-bg {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,.6);
+    backdrop-filter: blur(4px);
+  }
+  #mob-drawer-panel {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 260px; background: var(--s1);
+    border-right: 1px solid var(--b1);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+    animation: slideIn .2s ease;
+  }
+  @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+  #mob-drawer-header {
+    padding: 20px 16px 12px;
+    border-bottom: 1px solid var(--b1);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #mob-drawer-logo { font-size: 22px; font-weight: 900; color: var(--acc); letter-spacing: 2px; }
+  #mob-drawer-close {
+    background: none; border: none; color: var(--tx2);
+    font-size: 18px; cursor: pointer; padding: 4px;
+  }
+  #mob-drawer-nav { padding: 8px 0; flex: 1; }
+  .mob-si {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 20px; cursor: pointer;
+    color: var(--tx2); font-size: 13px;
+    border-left: 3px solid transparent;
+    transition: all .15s;
+  }
+  .mob-si:hover { background: var(--s2); color: var(--tx1); }
+  .mob-si.active { color: var(--acc); border-left-color: var(--acc); background: var(--s2); font-weight: 600; }
+  .mob-si .mob-ic { font-size: 16px; width: 22px; text-align: center; }
+  #mob-drawer-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--b1);
+    font-size: 10px; color: var(--tx3);
+  }
+
+  /* Bottom navigation bar */
+  #mob-bottom-nav {
+    display: flex !important;
+    height: 56px; min-height: 56px;
+    background: var(--s1);
+    border-top: 1px solid var(--b1);
+    flex-shrink: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mob-bn {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px;
+    min-width: 58px; flex: 1;
+    cursor: pointer; color: var(--tx3);
+    font-size: 9px; letter-spacing: .5px;
+    border: none; background: none;
+    padding: 0 4px;
+    transition: color .15s;
+    text-align: center;
+  }
+  .mob-bn .mob-bn-ic { font-size: 16px; line-height: 1; }
+  .mob-bn.active { color: var(--acc); }
+  .mob-bn:active { opacity: .7; }
+
+  /* Page area */
+  #page { padding: 14px 14px 0; flex: 1; overflow-y: auto; }
+
+  /* Grillas → 1 o 2 columnas */
+  .g2, .g3, .g4, .g5 { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  .g2.solo, .g3.solo { grid-template-columns: 1fr !important; }
+
+  /* Cards más compactas */
+  .card { padding: 12px !important; }
+  .cv { font-size: 16px !important; }
+  .cl { font-size: 9px !important; }
+
+  /* Tablas — scroll horizontal */
+  .tw { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 500px; }
+
+  /* Header de sección */
+  .sh { flex-wrap: wrap; gap: 8px; }
+  .sh > div:first-child { flex: 1; min-width: 0; }
+
+  /* Modales full screen */
+  .moc, .mbox {
+    width: 100% !important; max-width: 100% !important;
+    margin: 0 !important; border-radius: 16px 16px 0 0 !important;
+    max-height: 92vh !important; overflow-y: auto !important;
+  }
+  .mo { align-items: flex-end !important; }
+
+  /* Forms */
+  .fr { grid-template-columns: 1fr !important; }
+  .fr2 { grid-template-columns: 1fr !important; }
+  .fa { flex-wrap: wrap; }
+
+  /* Botones en header de proyecto */
+  #page > div > .sh { flex-wrap: wrap; }
+
+  /* Tabs de proyecto */
+  [id^="tabs-"] { overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+
+  /* Ocultar columnas no esenciales en tablas */
+  .tw table .m { font-size: 11px; }
+
+  /* KPI cards de 1 col cuando son pocas */
+  .g3.kpi-main { grid-template-columns: 1fr !important; }
+
+  /* Titulo de pagina */
+  .pgtitle { font-size: 18px !important; }
+
+  /* TC badge */
+  #tc-badge { font-size: 9px !important; }
+
+  /* Logout btn */
+  #logout-btn span { display: none; }
+}
+
+@media (max-width: 380px) {
+  .g2, .g3, .g4 { grid-template-columns: 1fr !important; }
+  #page { padding: 10px 10px 0; }
+}
 </style>
 </head>
 <body>
@@ -352,7 +520,41 @@ select option{background:var(--s2);}
 </div>
 
 <!-- ═══════ APP ═══════ -->
-<div id="app" style="display:none;width:100%;height:100vh;overflow:hidden;">
+<div id="app" style="display:none;width:100%;height:100vh;overflow:hidden;flex-direction:column">
+<!-- MOBILE HEADER -->
+<div id="mob-header" style="display:none">
+  <div id="mob-logo">KLY</div>
+  <span id="mob-page-title"></span>
+  <button id="mob-menu-btn" onclick="toggleMobDrawer()">☰</button>
+</div>
+
+<!-- MOBILE DRAWER -->
+<div id="mob-drawer">
+  <div id="mob-drawer-bg" onclick="closeMobDrawer()"></div>
+  <div id="mob-drawer-panel">
+    <div id="mob-drawer-header">
+      <div id="mob-drawer-logo">KLY</div>
+      <button id="mob-drawer-close" onclick="closeMobDrawer()">✕</button>
+    </div>
+    <div id="mob-drawer-nav">
+      <div class="mob-si" id="mni-dash"    onclick="mobGo('dash')">    <span class="mob-ic">◈</span> Dashboard</div>
+      <div class="mob-si" id="mni-proy"    onclick="mobGo('proy')">    <span class="mob-ic">⬡</span> Proyectos</div>
+      <div class="mob-si" id="mni-pref"    onclick="mobGo('pref')">    <span class="mob-ic">◐</span> Prefactibilidades</div>
+      <div class="mob-si" id="mni-caja"    onclick="mobGo('caja')">    <span class="mob-ic">◎</span> Caja Global</div>
+      <div class="mob-si" id="mni-socios"  onclick="mobGo('socios')">  <span class="mob-ic">◇</span> Caja Socios</div>
+      <div class="mob-si" id="mni-chica"   onclick="mobGo('chica')">   <span class="mob-ic">◈</span> Caja Chica</div>
+      <div class="mob-si" id="mni-inv"     onclick="mobGo('inv')">     <span class="mob-ic">◈</span> Inversores</div>
+      <div class="mob-si" id="mni-inmob"   onclick="mobGo('inmob')">   <span class="mob-ic">🏢</span> Inmobiliarias</div>
+      <div class="mob-si" id="mni-oficina" onclick="mobGo('oficina')"> <span class="mob-ic">◻</span> Oficina</div>
+      <div class="mob-si" id="mni-redes"   onclick="mobGo('redes')">   <span class="mob-ic">◉</span> Redes</div>
+      <div class="mob-si" id="mni-admin"   onclick="mobGo('admin')">   <span class="mob-ic">⚙</span> Preferencias</div>
+    </div>
+    <div id="mob-drawer-footer">
+      <button class="btn bg bs" style="width:100%" onclick="logout()">Cerrar sesión</button>
+    </div>
+  </div>
+</div>
+
 
 <div id="sb">
   <div class="slogo">
@@ -957,6 +1159,11 @@ async function loadAuthBranding() {
       logoTxt.style.display = 'block';
     }
 
+    // Update mobile header logo too
+    const mobLogo1 = $('mob-logo'), mobLogo2 = $('mob-drawer-logo');
+    const shortName = (cfg.login_titulo || 'KLY').split(' ')[0];
+    if (mobLogo1) mobLogo1.textContent = shortName;
+    if (mobLogo2) mobLogo2.textContent = shortName;
     // Subtítulo y footer
     const sub = $('auth-subtitulo');
     if (sub) sub.textContent = cfg.login_subtitulo || '';
@@ -1064,7 +1271,7 @@ async function initApp(user) {
   await loadAll();
   setupRT();
   hideLoad();
-  renderSubs(); render();
+  setupMobile(); renderSubs(); render();
 }
 
 //
@@ -1211,6 +1418,68 @@ function renderSubs() {
 //
 // RENDER DISPATCH
 //
+
+// ── MOBILE NAV ────────────────────────────────────────────────────
+const MOB_TITLES = {
+  dash:'Dashboard', proy:'Proyectos', pref:'Prefactibilidades',
+  caja:'Caja Global', socios:'Caja Socios', chica:'Caja Chica',
+  inv:'Inversores', inmob:'Inmobiliarias', oficina:'Oficina',
+  redes:'Redes', admin:'Preferencias'
+};
+
+function isMobile() { return window.innerWidth <= 768; }
+
+function mobGo(page) {
+  closeMobDrawer();
+  go(page);
+}
+
+function toggleMobDrawer() {
+  const d = $('mob-drawer');
+  if (d) d.classList.toggle('open');
+}
+
+function closeMobDrawer() {
+  const d = $('mob-drawer');
+  if (d) d.classList.remove('open');
+}
+
+function updateMobNav(page) {
+  if (!isMobile()) return;
+  // Update page title in header
+  const t = $('mob-page-title');
+  if (t) t.textContent = MOB_TITLES[page] || '';
+  // Update drawer active
+  document.querySelectorAll('.mob-si').forEach(el => el.classList.remove('active'));
+  const mni = $('mni-' + page);
+  if (mni) mni.classList.add('active');
+  // Update bottom nav active
+  document.querySelectorAll('.mob-bn').forEach(el => el.classList.remove('active'));
+  const mbn = $('mbn-' + page);
+  if (mbn) mbn.classList.add('active');
+}
+
+function setupMobile() {
+  const mobile = isMobile();
+  const header = $('mob-header');
+  const bottomNav = $('mob-bottom-nav');
+  const sb = $('sb');
+  if (header)    header.style.display    = mobile ? 'flex' : 'none';
+  if (bottomNav) bottomNav.style.display = mobile ? 'flex' : 'none';
+  if (sb)        sb.style.display        = mobile ? 'none' : '';
+  // Load logo/title from branding
+  const cfg = S.cfg || {};
+  const empresa = cfg.nombre_empresa || 'KLY';
+  const el1 = $('mob-logo'), el2 = $('mob-drawer-logo');
+  if (el1) el1.textContent = empresa.split(' ')[0];
+  if (el2) el2.textContent = empresa.split(' ')[0];
+}
+
+window.addEventListener('resize', () => {
+  setupMobile();
+  updateMobNav(spag || 'dash');
+});
+
 function render() {
   const titles = {
     dash: 'DASHBOARD', proy: 'PROYECTOS', pref: 'PREFACTIBILIDADES',
@@ -1244,6 +1513,7 @@ function render() {
   }
   $('tbr').innerHTML = (acts[pg] || '') + extra;
   const map = { dash: rDash, proy: rProys, pref: rPref, caja: rCaja, socios: rSocios, inv: rInv, inmob: rInmob, oficina: rOficina, redes: rRedes, admin: rAdmin, chica: rCajaChica };
+  updateMobNav(spag);
   $('page').innerHTML = (map[pg] || rDash)();
   // Post-render: bind inline editing
   if (pg === 'proy' && spid && stab === 'ga') bindInlineEdit();
