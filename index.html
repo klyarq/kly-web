@@ -485,7 +485,9 @@ select option{background:var(--s2);}
           <label style="font-size:10px;color:rgba(255,255,255,.4);letter-spacing:1.5px;text-transform:uppercase">Contraseña</label>
           <button class="alink" onclick="showAuthPanel('recovery')">¿Olvidaste tu contraseña?</button>
         </div>
-        <input class="ainput" type="password" id="apass" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()">
+        <div style="position:relative">
+        <input class="ainput" type="password" id="apass" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()" style="padding-right:40px">
+        <button type="button" onclick="togglePassVis('apass',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:rgba(255,255,255,.35);cursor:pointer;font-size:16px;padding:2px;line-height:1" title="Mostrar/ocultar contraseña">👁</button></div>
       </div>
       <button class="abtn abtn-primary" id="btn-login" onclick="login()">Entrar</button>
       <div class="afooter" id="auth-footer-txt">Acceso restringido</div>
@@ -716,19 +718,20 @@ select option{background:var(--s2);}
   <div class="mt">MOVIMIENTO DE CAJA</div>
   <div class="fr"><div class="fg"><label>Tipo</label><select id="mT"><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></div><div class="fg"><label>Moneda</label><select id="mMon"><option>USD</option><option>ARS</option></select></div></div>
   <div class="fr"><div class="fg"><label>Concepto</label><input id="mC"></div><div class="fg"><label>Monto</label><input type="number" id="mMo"></div></div>
-  <div class="fg"><label>Categoría</label><select id="mCat" style="width:100%">
+  <div class="fr"><div class="fg"><label>Categoría</label><select id="mCat" style="width:100%">
     <option value="">Sin categoría</option>
     <option value="compra">Compra propiedad</option>
     <option value="obra">Gastos de obra</option>
     <option value="venta">Venta / cobranza</option>
+    <option value="comision">Comisión inmobiliaria</option>
     <option value="honorarios">Honorarios</option>
     <option value="impuestos">Impuestos / escribanía</option>
     <option value="oficina">Gastos de oficina</option>
     <option value="inversion">Inversión recibida</option>
     <option value="devolucion">Devolución a inversor</option>
+    <option value="caja_chica">Caja chica</option>
     <option value="otros">Otros</option>
-  </select></div>
-  <div class="fr"><div class="fg"><label>TC (si ARS — actualiza global)</label><input type="number" id="mTC" placeholder="1200"></div><div class="fg"><label>Categoría</label><select id="mCat"><option value="">— Categoría —</option><option>Compra</option><option>Obra</option><option>Venta</option><option>Comisión inmobiliaria</option><option>Honorarios</option><option>Impuestos</option><option>Gastos oficina</option><option>Inversores</option><option>Caja chica</option><option>Otros</option></select></div></div>
+  </select></div><div class="fg"><label>TC (si ARS — actualiza global)</label><input type="number" id="mTC" placeholder="1200"></div></div>
   <div class="fr"><div class="fg"><label>Proyecto</label><select id="mP"><option value="">— General —</option></select></div><div class="fg"><label>Socio que pagó</label><select id="mS"><option value="">— Empresa —</option><option>Franco</option><option>Mateo</option><option>Julian</option></select></div></div>
   <div class="fr"><div class="fg"><label>Fecha</label><input type="date" id="mF"></div><div class="fg"><label>Notas</label><input id="mN"></div></div>
   <div class="fa"><button class="btn bg" onclick="CM('mo-m')">Cancelar</button><button class="btn bp" onclick="saveMov()">Guardar</button></div>
@@ -899,22 +902,56 @@ select option{background:var(--s2);}
   <div class="fa"><button class="btn bg" onclick="CM('mo-exp')">Cancelar</button><button class="btn bp" onclick="saveExpensa()">Guardar</button></div>
 </div></div>
 
-<!-- DOCUMENTO -->
-<div class="mo" id="mo-doc"><div class="mbox">
-  <div class="mt">SUBIR DOCUMENTO</div>
-  <div class="fr"><div class="fg"><label>Nombre</label><input id="docN"></div><div class="fg"><label>Categoría</label><select id="docCat"><option>Escribanía</option><option>Proyecto</option><option>Inmobiliaria</option><option>Arquitectura</option><option>Permisos</option><option>Otros</option></select></div></div>
-  <div class="fg"><label>Archivo</label>
-    <div class="dz" id="dzdrop" onclick="document.getElementById('docFile').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dzDrop(event)">
-      <input type="file" id="docFile" accept=".pdf,.dwg,.jpg,.jpeg,.png,.skp,.xlsx,.docx,.zip" onchange="dzFile(this.files[0])">
-      <div style="font-size:20px;margin-bottom:6px">📎</div>
-      <div style="font-size:11px">Arrastrá o hacé clic para seleccionar</div>
-      <div style="font-size:9px;color:var(--tx3);margin-top:3px">PDF · DWG · JPG · SKP · XLSX y más</div>
-      <div id="dzname" style="font-size:11px;color:var(--acc);margin-top:5px"></div>
+<!-- DOCUMENTO (multi-upload) -->
+<div class="mo" id="mo-doc"><div class="mbox w">
+  <div class="mt">SUBIR DOCUMENTOS</div>
+  <!-- Drop zone multi-archivo -->
+  <div class="fg">
+    <div class="dz" id="dzdrop"
+      onclick="document.getElementById('docFile').click()"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="dzDropMulti(event)">
+      <input type="file" id="docFile" accept=".pdf,.dwg,.jpg,.jpeg,.png,.skp,.xlsx,.docx,.zip,.mp4,.mov,.rar,.7z" multiple onchange="dzAddFiles(this.files)">
+      <div style="font-size:24px;margin-bottom:6px">📂</div>
+      <div style="font-size:12px;font-weight:600">Arrastrá archivos o hacé clic para seleccionar</div>
+      <div style="font-size:9px;color:var(--tx3);margin-top:4px">PDF · DWG · JPG · PNG · SKP · XLSX · DOCX · ZIP · MP4 y más · Podés seleccionar varios a la vez</div>
     </div>
-    <div class="pbar mt8" id="dpbar"><div class="pfill" id="dpfill" style="width:0%"></div></div>
   </div>
-  <div class="fg"><label>Notas</label><input id="docNO"></div>
-  <div class="fa"><button class="btn bg" onclick="CM('mo-doc')">Cancelar</button><button class="btn bp" onclick="saveDoc()">Subir</button></div>
+  <!-- Lista de archivos pendientes -->
+  <div id="dz-file-list" style="display:none;margin-bottom:12px">
+    <div style="font-size:9px;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Archivos seleccionados</div>
+    <div id="dz-items"></div>
+  </div>
+  <!-- Categoría global (se puede cambiar por archivo) -->
+  <div class="fr">
+    <div class="fg"><label>Categoría (para todos)</label>
+      <select id="docCat">
+        <option value="Escribanía">Escribanía</option>
+        <option value="Proyecto">Proyecto</option>
+        <option value="Inmobiliaria">Inmobiliaria</option>
+        <option value="Arquitectura">Arquitectura</option>
+        <option value="Permisos">Permisos</option>
+        <option value="Fotos">Fotos</option>
+        <option value="Contratos">Contratos</option>
+        <option value="Presupuestos">Presupuestos</option>
+        <option value="Otros">Otros</option>
+      </select>
+    </div>
+    <div class="fg"><label>Notas (para todos)</label><input id="docNO" placeholder="Observación general..."></div>
+  </div>
+  <!-- Barra de progreso global -->
+  <div id="dz-progress-wrap" style="display:none;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div style="font-size:10px;color:var(--tx3)" id="dz-progress-txt">Subiendo...</div>
+      <div style="font-size:10px;color:var(--acc);font-family:var(--fm)" id="dz-progress-count"></div>
+    </div>
+    <div class="pbar" style="display:block"><div class="pfill" id="dpfill" style="width:0%"></div></div>
+  </div>
+  <div class="fa">
+    <button class="btn bg" onclick="CM('mo-doc')">Cancelar</button>
+    <button class="btn bp" id="btn-doc-subir" onclick="saveDocMulti()">↑ Subir archivos</button>
+  </div>
 </div></div>
 
 <!-- GASTO OFICINA -->
@@ -1211,6 +1248,14 @@ async function loadAuthBranding() {
   }
 }
 
+function togglePassVis(inputId, btn) {
+  const el = $(inputId); if (!el) return;
+  const show = el.type === 'password';
+  el.type = show ? 'text' : 'password';
+  btn.style.color = show ? 'rgba(255,255,255,.7)' : 'rgba(255,255,255,.35)';
+  btn.title = show ? 'Ocultar contraseña' : 'Mostrar contraseña';
+}
+
 function showAuthPanel(panel) {
   const panels = ['login','recovery','new-password'];
   panels.forEach(p => {
@@ -1289,6 +1334,8 @@ async function initApp(user) {
   S.eid = usr.empresa_id; S.rol = usr.rol; S.nombre = usr.nombre;
   // Restaurar config local
   try { const c = JSON.parse(localStorage.getItem('kly_cfg') || '{}'); Object.assign(S.cfg, c); } catch (e) {}
+  // Cargar API key desde clave separada (no viaja a Supabase ni se sobreescribe)
+  try { const k = localStorage.getItem('kly_apikey'); if (k) S.cfg.anthropic_key = k; } catch(e) {}
   // Verificar si es acceso portal
   if (await checkPortalAccess()) return;
   // Mostrar admin nav
@@ -2870,6 +2917,12 @@ function rPDo(pf) {
 
   return `<div>
 
+    <!-- Header con botón subir -->
+    <div class="sh mb12">
+      <div class="st">Documentos del proyecto</div>
+      <button class="btn bp bs" onclick="openNDoc('${pid}')">📂 Subir documentos</button>
+    </div>
+
     <!-- KPIs -->
     <div class="g4 mb12">
       <div class="card"><div class="cl">Total documentos</div><div class="cv acc">${docs.length}</div></div>
@@ -2892,7 +2945,7 @@ function rPDo(pf) {
       <div class="empty" style="padding:32px">
         <h3>Sin documentos</h3>
         <p>Subí escrituras, planos, contratos y cualquier archivo del proyecto.</p>
-        <button class="btn bp" onclick="openNDoc('${pid}')" style="margin-top:14px">+ Subir primer documento</button>
+        <button class="btn bp" onclick="openNDoc('${pid}')" style="margin-top:14px">📂 Subir documentos</button>
       </div>
     </div>` : porCat.map(({cat, items}) => `
     <div class="card mb10">
@@ -6502,8 +6555,12 @@ async function saveParams() {
   S.cfg.tc = parseFloat(vOf('par-tc')) || 1200;
   S.cfg.params = params;
   const apikey = vOf('par-apikey');
-  if (apikey) S.cfg.anthropic_key = apikey;
-  // Guardar en Supabase para que todos los socios lo vean
+  if (apikey) {
+    S.cfg.anthropic_key = apikey;
+    // API key se guarda en clave separada — nunca se sube a Supabase ni se mezcla con cfg compartida
+    try { localStorage.setItem('kly_apikey', apikey); } catch(e) {}
+  }
+  // Guardar en Supabase para que todos los socios lo vean (SIN la API key)
   const cfgData = { tc: S.cfg.tc, params, tc_blue: S.cfg.tc_blue, tc_oficial: S.cfg.tc_oficial, tc_fecha: S.cfg.tc_fecha };
   try {
     await SB.from('configuracion_empresa').upsert(
@@ -6512,10 +6569,10 @@ async function saveParams() {
     );
   } catch(e) { /* tabla no existe aun */ }
   try { localStorage.setItem('kly_cfg', JSON.stringify(cfgData)); } catch (e) {}
-  // Cargar API key de localStorage (se guarda solo localmente, no en Supabase)
+  // Recargar API key desde su clave separada
   try {
-    const saved = JSON.parse(localStorage.getItem('kly_cfg')||'{}');
-    if (saved.anthropic_key) S.cfg.anthropic_key = saved.anthropic_key;
+    const savedKey = localStorage.getItem('kly_apikey');
+    if (savedKey) S.cfg.anthropic_key = savedKey;
   } catch(e) {}
   $('tcdisplay').textContent = fA(S.cfg.tc); const _mt=$('mob-tc'); if(_mt) _mt.textContent='$'+Math.round(S.cfg.tc).toLocaleString('es-AR');
   toast('Parametros guardados y sincronizados');
@@ -7847,33 +7904,124 @@ async function convPF(id) {
   await loadAll(); go('proy', np.id, 'ov'); toast('Proyecto creado desde prefactibilidad');
 }
 
-// DOCUMENTOS
-let docPid = null, docFile = null;
-function openNDoc(pid) { docPid = pid; docFile = null; sv('docN', ''); sv('docNO', ''); $('dzname').textContent = ''; $('dpbar').style.display = 'none'; OM('mo-doc'); }
-function dzFile(f) { if (!f) return; docFile = f; $('dzname').textContent = `${f.name} (${(f.size / 1024).toFixed(0)} KB)`; if (!vOf('docN')) sv('docN', f.name); }
-function dzDrop(e) { e.preventDefault(); $('dzdrop').classList.remove('drag'); const f = e.dataTransfer.files[0]; if (f) dzFile(f); }
-async function saveDoc() {
-  if (!docFile || !docPid) return toast('Selecciona un archivo', 'er');
-  const nombre = vOf('docN') || docFile.name;
-  const ext = docFile.name.split('.').pop().toUpperCase();
-  const path = `${S.eid}/${docPid}/${Date.now()}_${docFile.name.replace(/\s+/g, '_')}`;
-  showLoad(); $('dpbar').style.display = 'block';
-  const { error: upErr } = await SB.storage.from('documentos').upload(path, docFile, { cacheControl: '3600', upsert: false });
-  if (upErr) { hideLoad(); return toast(upErr.message, 'er'); }
-  $('dpfill').style.width = '60%';
-  const { data: urlData } = SB.storage.from('documentos').getPublicUrl(path);
-  const { error: dbErr } = await SB.from('documentos').insert({
-    proyecto_id: docPid, nombre, categoria: vOf('docCat'), tipo_archivo: ext,
-    storage_path: path, storage_url: urlData?.publicUrl,
-    mime_type: docFile.type, size_bytes: docFile.size,
-    notas: vOf('docNO') || null, subido_por: S.user.id, fecha: td()
+// DOCUMENTOS — multi-upload
+let docPid = null, docFiles = []; // docFiles = array de {file, nombre, categoria, notas}
+
+function openNDoc(pid) {
+  docPid = pid;
+  docFiles = [];
+  $('dz-file-list').style.display = 'none';
+  $('dz-items').innerHTML = '';
+  $('dz-progress-wrap').style.display = 'none';
+  $('dpfill').style.width = '0%';
+  $('docNO').value = '';
+  $('btn-doc-subir').disabled = false;
+  $('btn-doc-subir').textContent = '↑ Subir archivos';
+  OM('mo-doc');
+}
+
+function dzAddFiles(fileList) {
+  Array.from(fileList).forEach(f => {
+    // Evitar duplicados por nombre+tamaño
+    const exists = docFiles.some(x => x.file.name === f.name && x.file.size === f.size);
+    if (!exists) docFiles.push({ file: f, nombre: f.name, categoria: null, notas: '' });
   });
-  $('dpfill').style.width = '100%'; hideLoad();
-  if (dbErr) return toast(dbErr.message, 'er');
+  renderDzItems();
+}
+
+function dzDropMulti(e) {
+  e.preventDefault();
+  $('dzdrop').classList.remove('drag');
+  dzAddFiles(e.dataTransfer.files);
+}
+
+function removeDocFile(idx) {
+  docFiles.splice(idx, 1);
+  renderDzItems();
+}
+
+function renderDzItems() {
+  const list = $('dz-file-list');
+  const items = $('dz-items');
+  if (!docFiles.length) { list.style.display = 'none'; return; }
+  list.style.display = 'block';
+  const fmtSize = b => b > 1048576 ? (b/1048576).toFixed(1)+' MB' : (b/1024).toFixed(0)+' KB';
+  const extIco = { PDF:'📄', DWG:'📐', JPG:'🖼', JPEG:'🖼', PNG:'🖼', SKP:'🏗', XLSX:'📊', DOCX:'📝', ZIP:'📦', MP4:'🎬', MOV:'🎬' };
+  items.innerHTML = docFiles.map((df, i) => {
+    const ext = df.file.name.split('.').pop().toUpperCase();
+    const ico = extIco[ext] || '📎';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);margin-bottom:6px" id="dz-item-${i}">
+      <span style="font-size:18px;flex-shrink:0">${ico}</span>
+      <div style="flex:1;min-width:0">
+        <input value="${df.nombre}" style="width:100%;background:var(--s3);border:1px solid var(--b1);border-radius:var(--r);padding:4px 8px;color:var(--tx);font-size:11px;margin-bottom:4px"
+          oninput="docFiles[${i}].nombre=this.value" placeholder="Nombre del archivo">
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="font-size:9px;color:var(--tx3);flex-shrink:0">${fmtSize(df.file.size)}</span>
+          <span style="background:var(--s3);color:var(--tx3);padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700">${ext}</span>
+        </div>
+      </div>
+      <button onclick="removeDocFile(${i})" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:14px;flex-shrink:0;padding:2px 4px" title="Quitar">✕</button>
+    </div>`;
+  }).join('');
+  $('btn-doc-subir').textContent = `↑ Subir ${docFiles.length} archivo${docFiles.length > 1 ? 's' : ''}`;
+}
+
+async function saveDocMulti() {
+  if (!docFiles.length || !docPid) return toast('Seleccioná al menos un archivo', 'er');
+  const categoria = vOf('docCat');
+  const notasGlobal = vOf('docNO') || null;
+  const btn = $('btn-doc-subir');
+  btn.disabled = true;
+  $('dz-progress-wrap').style.display = 'block';
+  const total = docFiles.length;
+  let ok = 0, errors = 0;
+  for (let i = 0; i < total; i++) {
+    const df = docFiles[i];
+    const f = df.file;
+    const nombre = df.nombre || f.name;
+    const ext = f.name.split('.').pop().toUpperCase();
+    const path = `${S.eid}/${docPid}/${Date.now()}_${f.name.replace(/\s+/g, '_')}`;
+    $('dz-progress-txt').textContent = `Subiendo ${i+1} de ${total}: ${nombre}`;
+    $('dz-progress-count').textContent = `${i+1}/${total}`;
+    $('dpfill').style.width = `${Math.round((i / total) * 90)}%`;
+    // Resaltar item activo
+    const itemEl = $('dz-item-'+i);
+    if (itemEl) itemEl.style.borderColor = 'var(--acc)';
+    try {
+      const { error: upErr } = await SB.storage.from('documentos').upload(path, f, { cacheControl: '3600', upsert: false });
+      if (upErr) throw upErr;
+      const { data: urlData } = SB.storage.from('documentos').getPublicUrl(path);
+      const { error: dbErr } = await SB.from('documentos').insert({
+        proyecto_id: docPid, nombre, categoria,
+        tipo_archivo: ext, storage_path: path,
+        storage_url: urlData?.publicUrl,
+        mime_type: f.type, size_bytes: f.size,
+        notas: notasGlobal, subido_por: S.user.id, fecha: td()
+      });
+      if (dbErr) throw dbErr;
+      ok++;
+      if (itemEl) { itemEl.style.borderColor = 'var(--ok)'; itemEl.style.opacity = '0.6'; }
+    } catch(e) {
+      errors++;
+      if (itemEl) itemEl.style.borderColor = 'var(--err)';
+      console.error('Error subiendo', nombre, e.message);
+    }
+  }
+  $('dpfill').style.width = '100%';
+  $('dz-progress-txt').textContent = errors ? `${ok} subidos, ${errors} con error` : `${ok} archivos subidos correctamente`;
+  // Recargar docs
   const { data: dd } = await SB.from('documentos').select('*').in('proyecto_id', S.proyectos.map(p => p.id));
   S.docs = dd || [];
-  CM('mo-doc'); render(); toast('Documento subido');
+  setTimeout(() => {
+    CM('mo-doc');
+    render();
+    toast(errors ? `${ok} subidos, ${errors} fallaron` : `${ok} documento${ok>1?'s':''} subido${ok>1?'s':''}`, errors ? 'er' : 'ok');
+  }, 800);
 }
+
+// Mantener compatibilidad con la función original (por si hay referencias)
+function dzFile(f) { if (!f) return; dzAddFiles([f]); }
+function dzDrop(e) { dzDropMulti(e); }
 async function delDoc(id, path) {
   if (!confirm('Eliminar?')) return;
   if (path) await SB.storage.from('documentos').remove([path]);
@@ -8040,6 +8188,8 @@ async function marcarExpPagada(id) {
 //
 (async () => {
   try { const c = JSON.parse(localStorage.getItem('kly_cfg') || '{}'); Object.assign(S.cfg, c); } catch (e) {}
+  // Cargar API key desde clave separada
+  try { const k = localStorage.getItem('kly_apikey'); if (k) S.cfg.anthropic_key = k; } catch(e) {}
   const { data: { session } } = await SB.auth.getSession();
   if (session?.user) await initApp(session.user);
 })();
