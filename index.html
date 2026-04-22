@@ -1354,120 +1354,179 @@ async function initApp(user) {
 }
 
 //
-// LOAD ALL ? consume vistas SQL como fuente de verdad
+// CARGA DE DATOS — loadSections carga solo lo que se necesita
+// sections: array de keys, o null = todo
 //
-async function loadAll() {
+async function loadSections(sections) {
   const eid = S.eid;
-  // Consultas paralelas: vistas SQL + tablas base para selects/forms
-  const [vpf, dkpi, alrt, invd, pfcomp, proy, invs, mov, cs, of, rm, rp, usrs, cc] = await Promise.all([
-    SB.from('v_proyecto_financiero').select('*').eq('empresa_id', eid),
-    SB.from('v_dashboard_kpis').select('*').single(),
-    SB.from('v_alertas').select('*').eq('empresa_id', eid).limit(50),
-    SB.from('v_inversiones_detalle').select('*').eq('empresa_id', eid),
-    SB.from('v_prefact_completa').select('*').eq('empresa_id', eid).order('fecha', { ascending: false }),
-    SB.from('proyectos').select('id,nombre,estado,tipo').eq('empresa_id', eid).order('created_at'),
-    SB.from('inversores').select('*').eq('empresa_id', eid).order('id_unico'),
-    SB.from('movimientos_caja').select('*').eq('empresa_id', eid).order('fecha', { ascending: false }).limit(500),
-    SB.from('caja_socios').select('*,usuarios(nombre)').eq('empresa_id', eid).order('fecha', { ascending: false }),
-    SB.from('gastos_oficina').select('*').eq('empresa_id', eid).order('fecha', { ascending: false }),
-    SB.from('redes_metricas').select('*').eq('empresa_id', eid).order('fecha', { ascending: false }).limit(20),
-    SB.from('redes_posts').select('*').eq('empresa_id', eid).order('fecha'),
-    SB.from('usuarios').select('*').eq('empresa_id', eid),
-    SB.from('caja_chica').select('*').eq('empresa_id', eid).order('fecha', { ascending: false }).limit(500),
-  ]);
+  const all = !sections;
+  const has = k => all || sections.includes(k);
+  const queries = [];
 
-  S.proyFinanciero = vpf.data || [];
-  S.cajaChica = cc?.data || [];
-  S.dashKpis = dkpi.data || null;
-  S.alertas = alrt.data || [];
-  S.inversionesDetalle = invd.data || [];
-  S.prefactCompleta = pfcomp.data || [];
-  S.proyectos = proy.data || [];
-  S.inversores = invs.data || [];
-  S.movimientos = mov.data || [];
-  S.caja_socios = cs.data || [];
-  S.oficina = of.data || [];
-  // Cargar inmobiliarias por separado (tabla puede no existir a?n)
-  try {
-    const inmobRes = await SB.from('inmobiliarias').select('*').eq('empresa_id', eid).order('nombre');
-    S.inmobiliarias = inmobRes.data || [];
-  } catch(e) { S.inmobiliarias = []; }
-  S.usuarios_all = usrs.data || [];
-  S.redes_met = {};
-  (rm.data || []).forEach(m => { if (!S.redes_met[m.red]) S.redes_met[m.red] = m; });
-  S.redes_posts = rp.data || [];
+  // ── Vistas financieras ──
+  if (has('financiero')) queries.push(
+    SB.from('v_proyecto_financiero').select('*').eq('empresa_id', eid)
+      .then(r => { if (!r.error) S.proyFinanciero = r.data || []; })
+  );
+  if (has('kpis')) queries.push(
+    SB.from('v_dashboard_kpis').select('*').single()
+      .then(r => { if (!r.error) S.dashKpis = r.data || null; })
+  );
+  if (has('alertas')) queries.push(
+    SB.from('v_alertas').select('*').eq('empresa_id', eid).limit(50)
+      .then(r => { if (!r.error) S.alertas = r.data || []; })
+  );
+  if (has('inversiones')) queries.push(
+    SB.from('v_inversiones_detalle').select('*').eq('empresa_id', eid)
+      .then(r => { if (!r.error) S.inversionesDetalle = r.data || []; })
+  );
+  if (has('prefact')) queries.push(
+    SB.from('v_prefact_completa').select('*').eq('empresa_id', eid).order('fecha', { ascending: false })
+      .then(r => { if (!r.error) S.prefactCompleta = r.data || []; })
+  );
 
-  // Ventas (para formulario de edici?n)
-  if (S.proyectos.length) {
+  // ── Tablas base ──
+  if (has('proyectos')) queries.push(
+    SB.from('proyectos').select('id,nombre,estado,tipo').eq('empresa_id', eid).order('created_at')
+      .then(r => { if (!r.error) S.proyectos = r.data || []; })
+  );
+  if (has('inversores')) queries.push(
+    SB.from('inversores').select('*').eq('empresa_id', eid).order('id_unico')
+      .then(r => { if (!r.error) S.inversores = r.data || []; })
+  );
+  if (has('movimientos')) queries.push(
+    SB.from('movimientos_caja').select('*').eq('empresa_id', eid).order('fecha', { ascending: false }).limit(500)
+      .then(r => {
+        if (!r.error) {
+          S.movimientos = r.data || [];
+          const ultimoTC = S.movimientos.find(m => m.moneda === 'ARS' && m.tc_usado > 1);
+          if (ultimoTC) S.cfg.tc = ultimoTC.tc_usado;
+        }
+      })
+  );
+  if (has('socios')) queries.push(
+    SB.from('caja_socios').select('*,usuarios(nombre)').eq('empresa_id', eid).order('fecha', { ascending: false })
+      .then(r => { if (!r.error) S.caja_socios = r.data || []; })
+  );
+  if (has('oficina')) queries.push(
+    SB.from('gastos_oficina').select('*').eq('empresa_id', eid).order('fecha', { ascending: false })
+      .then(r => { if (!r.error) S.oficina = r.data || []; })
+  );
+  if (has('redes')) queries.push(
+    SB.from('redes_metricas').select('*').eq('empresa_id', eid).order('fecha', { ascending: false }).limit(20)
+      .then(r => {
+        if (!r.error) {
+          S.redes_met = {};
+          (r.data || []).forEach(m => { if (!S.redes_met[m.red]) S.redes_met[m.red] = m; });
+        }
+      }),
+    SB.from('redes_posts').select('*').eq('empresa_id', eid).order('fecha')
+      .then(r => { if (!r.error) S.redes_posts = r.data || []; })
+  );
+  if (has('usuarios')) queries.push(
+    SB.from('usuarios').select('*').eq('empresa_id', eid)
+      .then(r => { if (!r.error) S.usuarios_all = r.data || []; })
+  );
+  if (has('chica')) queries.push(
+    SB.from('caja_chica').select('*').eq('empresa_id', eid).order('fecha', { ascending: false }).limit(500)
+      .then(r => { if (!r.error) S.cajaChica = r.data || []; })
+  );
+
+  await Promise.all(queries);
+
+  // ── Post-carga: ventas, docs, etapas (dependen de proyectos cargados) ──
+  if ((all || has('proyectos') || has('ventas')) && S.proyectos.length) {
     const ids = S.proyectos.map(p => p.id);
-    const { data: vd } = await SB.from('ventas_detalle').select('*').in('proyecto_id', ids);
-    S.ventas = {}; (vd || []).forEach(v => S.ventas[v.proyecto_id] = v);
-    const { data: dd } = await SB.from('documentos').select('*').in('proyecto_id', ids);
-    S.docs = dd || [];
+    await Promise.all([
+      SB.from('ventas_detalle').select('*').in('proyecto_id', ids)
+        .then(r => { S.ventas = {}; (r.data || []).forEach(v => S.ventas[v.proyecto_id] = v); }),
+      SB.from('documentos').select('*').in('proyecto_id', ids)
+        .then(r => { S.docs = r.data || []; }),
+      SB.from('proyectos').select('id,etapas_compra_json,gastos_compra_json,fecha_venta').in('id', ids)
+        .then(r => { S._proyData = {}; (r.data||[]).forEach(p => { S._proyData[p.id] = p; }); }),
+    ]);
   }
 
-  // Cargar etapas_compra_json y gastos_compra_json para TIR real
-  if (S.proyectos.length) {
-    const ids = S.proyectos.map(p => p.id);
-    const { data: pdData } = await SB.from('proyectos')
-      .select('id,etapas_compra_json,gastos_compra_json,fecha_venta')
-      .in('id', ids);
-    S._proyData = {};
-    (pdData||[]).forEach(p => { S._proyData[p.id] = p; });
+  // ── Inmobiliarias (tabla puede no existir aún) ──
+  if (all || has('inmob')) {
+    try {
+      const r = await SB.from('inmobiliarias').select('*').eq('empresa_id', eid).order('nombre');
+      S.inmobiliarias = r.data || [];
+    } catch(e) { S.inmobiliarias = S.inmobiliarias || []; }
   }
 
-  // TC: ?ltimo movimiento ARS con TC > 1
-  const ultimoTC = S.movimientos.find(m => m.moneda === 'ARS' && m.tc_usado > 1);
-  if (ultimoTC) S.cfg.tc = ultimoTC.tc_usado;
-  // Cargar configuraci?n global desde Supabase (TC compartido entre socios)
-  // Silencioso ? no romper login si la tabla no existe
-  try {
-    const cfgRes = await SB.from('configuracion_empresa')
-      .select('valor').eq('empresa_id', eid).eq('clave','cfg_global')
-      .maybeSingle();
-    if (cfgRes.data?.valor) {
-      const cfgRemote = JSON.parse(cfgRes.data.valor);
-      if (cfgRemote.tc) S.cfg.tc = cfgRemote.tc;
-      if (cfgRemote.tc_blue) S.cfg.tc_blue = cfgRemote.tc_blue;
-      if (cfgRemote.tc_oficial) S.cfg.tc_oficial = cfgRemote.tc_oficial;
-      if (cfgRemote.tc_fecha) S.cfg.tc_fecha = cfgRemote.tc_fecha;
-      if (cfgRemote.params) S.cfg.params = cfgRemote.params;
-    }
-  } catch(e) { /* tabla no existe aun — ignorar */ }
-  $('tcdisplay').textContent = fA(S.cfg.tc); const _mt=$('mob-tc'); if(_mt) _mt.textContent='$'+Math.round(S.cfg.tc).toLocaleString('es-AR');
+  // ── TC compartido desde Supabase ──
+  if (all || has('movimientos') || has('kpis')) {
+    try {
+      const cfgRes = await SB.from('configuracion_empresa')
+        .select('valor').eq('empresa_id', eid).eq('clave','cfg_global').maybeSingle();
+      if (cfgRes.data?.valor) {
+        const cfgRemote = JSON.parse(cfgRes.data.valor);
+        if (cfgRemote.tc)         S.cfg.tc         = cfgRemote.tc;
+        if (cfgRemote.tc_blue)    S.cfg.tc_blue    = cfgRemote.tc_blue;
+        if (cfgRemote.tc_oficial) S.cfg.tc_oficial = cfgRemote.tc_oficial;
+        if (cfgRemote.tc_fecha)   S.cfg.tc_fecha   = cfgRemote.tc_fecha;
+        if (cfgRemote.params)     S.cfg.params     = cfgRemote.params;
+      }
+    } catch(e) { /* tabla no existe aun */ }
+  }
 
-  // Badge alertas en statusbar
+  // ── Actualizar UI ──
+  const tcEl = $('tcdisplay'); if (tcEl) tcEl.textContent = fA(S.cfg.tc);
+  const mtEl = $('mob-tc');   if (mtEl) mtEl.textContent = '$' + Math.round(S.cfg.tc).toLocaleString('es-AR');
   const nAlertas = S.alertas.filter(a => a.nivel === 'warning').length;
   const ab = $('alert-badge');
   if (ab) {
     if (nAlertas > 0) {
       ab.style.display = 'inline';
       ab.innerHTML = `<span class="badge br">${nAlertas} alerta${nAlertas > 1 ? 's' : ''}</span>`;
-    } else {
-      ab.style.display = 'none';
-    }
+    } else { ab.style.display = 'none'; }
   }
 }
 
+// loadAll: carga completa — al init y en operaciones que tocan múltiples secciones
+async function loadAll() { await loadSections(null); }
+
+// Helpers de recarga parcial para cada sección
+async function reloadFinanciero()  { await loadSections(['financiero','kpis','alertas']); }
+async function reloadMovimientos() { await loadSections(['movimientos','kpis']); }
+async function reloadInversiones() { await loadSections(['inversiones','financiero','kpis']); }
+async function reloadProyectos()   { await loadSections(['proyectos','financiero','kpis','alertas','ventas']); }
+async function reloadSocios()      { await loadSections(['socios']); }
+async function reloadChica()       { await loadSections(['chica','kpis']); }
+async function reloadOficina()     { await loadSections(['oficina']); }
+async function reloadRedes()       { await loadSections(['redes']); }
+async function reloadPrefact()     { await loadSections(['prefact']); }
 //
 // REALTIME
 //
+// Debounce para evitar que múltiples cambios simultáneos disparen loadAll N veces
+let _rtDebounce = null;
+function _rtReload(sections = null) {
+  clearTimeout(_rtDebounce);
+  _rtDebounce = setTimeout(async () => {
+    await loadSections(sections);
+    renderSubs();
+    render();
+  }, 280);
+}
+
 function setupRT() {
-  SB.channel('kly-v3')
+  SB.channel('kly-v4')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'proyectos', filter: `empresa_id=eq.${S.eid}` },
-      async () => { await loadAll(); renderSubs(); render(); })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos_obra' },
-      async () => { await loadAll(); render(); })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'ventas_detalle' },
-      async () => { await loadAll(); render(); })
+      () => _rtReload(['proyectos', 'financiero', 'kpis', 'alertas']))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos_obra', filter: `empresa_id=eq.${S.eid}` },
+      () => _rtReload(['financiero', 'kpis']))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ventas_detalle', filter: `empresa_id=eq.${S.eid}` },
+      () => _rtReload(['financiero', 'kpis', 'ventas']))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'movimientos_caja', filter: `empresa_id=eq.${S.eid}` },
-      async () => { await loadAll(); render(); })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'inversiones' },
-      async () => { await loadAll(); render(); })
+      () => _rtReload(['movimientos', 'kpis']))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'inversiones', filter: `empresa_id=eq.${S.eid}` },
+      () => _rtReload(['inversiones', 'financiero', 'kpis']))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'caja_socios', filter: `empresa_id=eq.${S.eid}` },
-    () => { loadAll().then(render); })
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'caja_chica', filter: `empresa_id=eq.${S.eid}` },
-      async () => { await loadAll(); render(); })
+      () => _rtReload(['socios']))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'caja_chica', filter: `empresa_id=eq.${S.eid}` },
+      () => _rtReload(['chica']))
     .subscribe(st => {
       const ok = st === 'SUBSCRIBED';
       $('rtdot').className = 'rtdot' + (ok ? '' : ' off');
@@ -1956,7 +2015,7 @@ async function quickEstado(pid, nuevoEstado, estadoActual) {
   const { error } = await SB.from('proyectos').update({ estado: nuevoEstado }).eq('id', pid);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  await loadAll(); render();
+  await reloadProyectos(); render();
   toast('Estado actualizado');
 }
 
@@ -2788,7 +2847,7 @@ async function guardarROIInversores(pid, val) {
   const roiInv   = Math.max(0, Math.min(parseFloat(val)||0, roiTotal));
   const { error } = await SB.from('proyectos').update({ roi_inversores_pct: roiInv }).eq('id', pid);
   if (error) return toast(error.message, 'er');
-  await loadAll(); renderSubs();
+  await reloadProyectos(); renderSubs();
   toast(`ROI inversores: ${f2(roiInv)}%`);
 }
 
@@ -2796,7 +2855,7 @@ async function guardarCapitalKLY(pid, val) {
   const cap = Math.max(0, parseFloat(val)||0);
   const { error } = await SB.from('proyectos').update({ capital_kly_usd: cap }).eq('id', pid);
   if (error) return toast(error.message, 'er');
-  await loadAll(); renderSubs();
+  await reloadProyectos(); renderSubs();
   toast(`Capital KLY: ${fU(cap)}`);
 }
 
@@ -2853,7 +2912,7 @@ async function saveTramosProyecto(pid) {
     .eq('id', pid);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  await loadAll(); render();
+  await reloadProyectos(); render();
   toast('Tramos guardados para este proyecto');
 }
 
@@ -2865,24 +2924,24 @@ async function resetTramosProyecto(pid) {
     .eq('id', pid);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  await loadAll(); render();
+  await reloadProyectos(); render();
   toast('Tramos restablecidos a configuracion global');
 }
 
 async function cambiarModoDistrib(pid, modo) {
   const upd = { dist_modo: modo };
   await SB.from('proyectos').update(upd).eq('id', pid);
-  await loadAll(); render();
+  await reloadProyectos(); render();
 }
 async function cambiarPctInv(pid, pct) {
   const v = Math.min(100, Math.max(0, parseFloat(pct) || 0));
   await SB.from('proyectos').update({ dist_inv_pct: v, dist_kly_pct: 100-v, dist_modo: 'fixed_pct' }).eq('id', pid);
-  await loadAll(); render();
+  await reloadProyectos(); render();
 }
 async function cambiarMontoInv(pid, monto) {
   const v = Math.max(0, parseFloat(monto) || 0);
   await SB.from('proyectos').update({ profit_investors_usd: v, dist_modo: 'fixed_amount' }).eq('id', pid);
-  await loadAll(); render();
+  await reloadProyectos(); render();
 }
 
 //
@@ -3906,7 +3965,7 @@ async function guardarTerreno() {
   const { error } = await SB.from('prefactibilidades').insert(data);
   hideLoad();
   if (error) return toast(error.message,'er');
-  await loadAll();
+  await reloadPrefact(); render();
   toast('Terreno guardado como prefactibilidad');
   // Switch to prefact list tab
   S._prefTab = 'prefact';
@@ -4554,7 +4613,7 @@ async function confirmarDistGan() {
   hideLoad();
   if (error) return toast(error.message, 'er');
   CM('mo-dist-gan');
-  await loadAll(); render();
+  await reloadProyectos(); render();
   const resumen = usrs.map((u,i)=>`${u.nombre}: ${fU(rows[i].monto)}`).join(' · ');
   toast(`Distribuido ${fU(monto)} — ${resumen}`);
 }
@@ -5155,7 +5214,7 @@ async function confirmarImport() {
 
   hideLoad();
   CM('mo-import');
-  await loadAll(); render();
+  await reloadProyectos(); render();
   toast(`Importados: ${ok} OK${err?' · '+err+' errores':''}`);
   if (btn) { btn.disabled=false; btn.textContent='Importar'; }
 }
@@ -5331,7 +5390,7 @@ async function confirmarDelInv(id) {
   showLoad();
   await SB.from('inversores').delete().eq('id', id);
   hideLoad();
-  await loadAll(); render();
+  await reloadProyectos(); render();
   toast('Inversor eliminado');
 }
 
@@ -5871,7 +5930,7 @@ async function crearKLYInversor() {
   });
   hideLoad();
   if (error) return toast(error.message, 'er');
-  await loadAll(); render(); toast('Perfil KLY creado');
+  await reloadInversiones(); render(); toast('Perfil KLY creado');
 }
 
 // Perfil KLY ? usa ganancia_kly_usd directamente de v_proyecto_financiero
@@ -6147,7 +6206,7 @@ async function saveInmob() {
   }
   hideLoad();
   if (error) return toast(error.message, 'er');
-  CM('mo-inmob'); await loadAll(); render();
+  CM('mo-inmob'); await loadSections(['inmob']); render();
   toast(inmobModal ? 'Inmobiliaria actualizada' : 'Inmobiliaria creada');
 }
 
@@ -6157,7 +6216,7 @@ async function delInmob(id) {
   const { error } = await SB.from('inmobiliarias').delete().eq('id', id);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  await loadAll(); render(); toast('Inmobiliaria eliminada');
+  await loadSections(['inmob']); render(); toast('Inmobiliaria eliminada');
 }
 
 function openOpsInmob(id) {
@@ -6201,7 +6260,7 @@ async function saveOpInmob() {
   const { error } = await SB.from('inmobiliarias').update({ operaciones_json: ops }).eq('id', inmobModal);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  await loadAll();
+  await loadSections(['inmob']); openOpsInmob(inmobModal);
   openOpsInmob(inmobModal); // refresh modal
   toast('Operacion agregada');
 }
@@ -6216,7 +6275,7 @@ async function delOpInmob(idx) {
   const { error } = await SB.from('inmobiliarias').update({ operaciones_json: ops }).eq('id', inmobModal);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  await loadAll();
+  await loadSections(['inmob']); openOpsInmob(inmobModal);
   openOpsInmob(inmobModal);
   toast('Operacion eliminada');
 }
@@ -6673,7 +6732,7 @@ async function cambiarRol(userId, nuevoRol) {
   showLoad();
   await SB.from('usuarios').update({ rol: nuevoRol }).eq('id', userId);
   hideLoad();
-  await loadAll(); render(); toast('Rol actualizado');
+  await loadSections(['usuarios']); render(); toast('Rol actualizado');
 }
 //
 // LIQUIDACI?N AUTOM?TICA DE INVERSORES
@@ -6785,7 +6844,7 @@ async function confirmarCierreLiquidacion(pid) {
   }
   await SB.from('proyectos').update({ estado: 'liquidado' }).eq('id', pid);
   hideLoad();
-  await loadAll();
+  await reloadProyectos(); go('proy'); toast('Proyecto liquidado y cerrado correctamente');
   go('proy');
   toast('Proyecto liquidado y cerrado correctamente');
 }
@@ -7036,7 +7095,7 @@ async function togglePortalAcceso(invId, habilitar) {
   const { error } = await SB.from('inversores').update({ portal_activo: habilitar }).eq('id', invId);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  await loadAll();
+  await reloadInversiones(); toast(habilitar ? 'Acceso habilitado' : 'Acceso deshabilitado'); CM('mo-portal');
   toast(habilitar ? 'Acceso habilitado' : 'Acceso deshabilitado');
   CM('mo-portal');
 }
@@ -7047,7 +7106,7 @@ async function resetPortalPin(invId) {
   const { error } = await SB.from('inversores').update({ portal_pin: null }).eq('id', invId);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  await loadAll();
+  await reloadInversiones(); toast('PIN reseteado — el inversor deberá crear uno nuevo'); CM('mo-portal');
   toast('PIN reseteado — el inversor deberá crear uno nuevo');
   CM('mo-portal');
 }
@@ -7376,7 +7435,7 @@ async function saveProy() {
   if (!S._proyData) S._proyData = {};
   const pid = ePid || 'new';
   S._proyData[pid] = data;
-  CM('mo-p'); await loadAll(); renderSubs(); render(); toast('Proyecto guardado');
+  CM('mo-p'); await reloadProyectos(); renderSubs(); render(); toast('Proyecto guardado');
 }
 async function delProy(id) {
   const pf = S.proyFinanciero.find(x => x.proyecto_id === id);
@@ -7385,7 +7444,7 @@ async function delProy(id) {
   const { error } = await SB.from('proyectos').delete().eq('id', id);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  spid = null; await loadAll(); renderSubs(); go('proy'); toast('Proyecto eliminado');
+  spid = null; await reloadProyectos(); renderSubs(); go('proy'); toast('Proyecto eliminado');
 }
 
 // GASTOS OBRA ? nuevo ?tem
@@ -7427,7 +7486,7 @@ async function saveGasto() {
   const { error } = await SB.from('gastos_obra').insert(data);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  CM('mo-g'); await loadAll(); await reloadGastos();
+  CM('mo-g'); await reloadProyectos(); await reloadGastos();
   toast(pagado > 0 ? 'Item guardado. Egreso registrado en caja.' : 'Item guardado.');
 }
 async function delG(id) {
@@ -7559,7 +7618,7 @@ async function saveVenta() {
   }
 
   hideLoad();
-  CM('mo-v'); await loadAll(); renderSubs(); render();
+  CM('mo-v'); await reloadProyectos(); renderSubs(); render();
 }
 
 // MOVIMIENTOS
@@ -7580,9 +7639,9 @@ async function saveMov() {
   const { error } = await SB.from('movimientos_caja').insert(data);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  CM('mo-m'); await loadAll(); render(); toast('Movimiento guardado');
+  CM('mo-m'); await reloadMovimientos(); render(); toast('Movimiento guardado');
 }
-async function delMov(id) { if (!confirm('Eliminar?')) return; await SB.from('movimientos_caja').delete().eq('id', id); await loadAll(); render(); }
+async function delMov(id) { if (!confirm('Eliminar?')) return; await SB.from('movimientos_caja').delete().eq('id', id); await reloadMovimientos(); render(); }
 
 //
 // INVERSOR ? PERFIL (crear / editar)
@@ -7630,7 +7689,7 @@ async function saveInv() {
   hideLoad();
   if (error) return toast(error.message, 'er');
   CM('mo-i');
-  await loadAll(); render();
+  await reloadInversiones(); render();
 
   // Si es nuevo, mostrar resumen con link del portal
   if (esNuevo && result) {
@@ -7682,7 +7741,7 @@ async function delInvPerfil(id) {
   showLoad();
   await SB.from('inversores').delete().eq('id', id);
   hideLoad();
-  await loadAll(); render(); toast('Inversor eliminado');
+  await reloadInversiones(); render(); toast('Inversor eliminado');
 }
 
 // Toggle campos de ganancia en modal de inversi?n
@@ -7756,9 +7815,9 @@ async function saveInversion() {
     : await SB.from('inversiones').insert(data);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  CM('mo-iv'); await loadAll(); render(); toast('Inversión guardada');
+  CM('mo-iv'); await reloadInversiones(); render(); toast('Inversión guardada');
 }
-async function delInv2(id) { if (!confirm('Eliminar?')) return; await SB.from('inversiones').delete().eq('id', id); await loadAll(); render(); }
+async function delInv2(id) { if (!confirm('Eliminar?')) return; await SB.from('inversiones').delete().eq('id', id); await reloadInversiones(); render(); }
 
 // CAJA SOCIOS
 let editCSid = null;
@@ -7788,15 +7847,15 @@ async function saveCS() {
   const { error } = editCSid ? await SB.from('caja_socios').update(data).eq('id', editCSid) : await SB.from('caja_socios').insert(data);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  CM('mo-cs'); await loadAll(); render(); toast('Guardado');
+  CM('mo-cs'); await reloadSocios(); render(); toast('Guardado');
 }
-async function delCS(id) { if (!confirm('Eliminar?')) return; await SB.from('caja_socios').delete().eq('id', id); await loadAll(); render(); }
+async function delCS(id) { if (!confirm('Eliminar?')) return; await SB.from('caja_socios').delete().eq('id', id); await reloadSocios(); render(); }
 async function marcarReem(id) {
   if (!confirm('Marcar como reembolsado? Se generara egreso en caja general.')) return;
   showLoad();
   await SB.from('caja_socios').update({ reembolsado: true, fecha_reembolso: td() }).eq('id', id);
   hideLoad();
-  await loadAll(); render(); toast('Reembolso registrado');
+  await reloadSocios(); render(); toast('Reembolso registrado');
 }
 
 // PREFACTIBILIDADES
@@ -7875,7 +7934,7 @@ async function savePF() {
   const { error } = ePFid ? await SB.from('prefactibilidades').update(data).eq('id', ePFid) : await SB.from('prefactibilidades').insert(data);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  CM('mo-pf'); await loadAll(); render(); toast('Guardado');
+  CM('mo-pf'); await reloadPrefact(); render(); toast('Guardado');
 }
 async function dupPF(id) {
   const pf = S.prefactCompleta.find(p => p.id === id); if (!pf) return;
@@ -7883,9 +7942,9 @@ async function dupPF(id) {
   rest.direccion += ' (copia)'; rest.estado = 'nueva'; rest.fecha = td();
   const { error } = await SB.from('prefactibilidades').insert(rest);
   if (error) return toast(error.message, 'er');
-  await loadAll(); render(); toast('Duplicada');
+  await reloadPrefact(); render(); toast('Duplicada');
 }
-async function delPF(id) { if (!confirm('Eliminar?')) return; await SB.from('prefactibilidades').delete().eq('id', id); await loadAll(); render(); }
+async function delPF(id) { if (!confirm('Eliminar?')) return; await SB.from('prefactibilidades').delete().eq('id', id); await reloadPrefact(); render(); }
 async function convPF(id) {
   const pf = S.prefactCompleta.find(p => p.id === id); if (!pf) return;
   if (!confirm(`Convertir "${pf.direccion}" en proyecto?`)) return;
@@ -7901,7 +7960,7 @@ async function convPF(id) {
   if (!error) await SB.from('prefactibilidades').update({ estado: 'convertida', proyecto_id: np.id }).eq('id', id);
   hideLoad();
   if (error) return toast(error.message, 'er');
-  await loadAll(); go('proy', np.id, 'ov'); toast('Proyecto creado desde prefactibilidad');
+  await reloadProyectos(); go('proy', np.id, 'ov'); toast('Proyecto creado desde prefactibilidad');
 }
 
 // DOCUMENTOS — multi-upload
@@ -8049,22 +8108,22 @@ async function saveOficina() {
   }
   hideLoad();
   if (error) return toast(error.message, 'er');
-  CM('mo-of'); await loadAll(); render(); toast('Gasto guardado');
+  CM('mo-of'); await reloadOficina(); render(); toast('Gasto guardado');
 }
-async function delOf(id) { if (!confirm('Eliminar?')) return; await SB.from('gastos_oficina').delete().eq('id', id); await loadAll(); render(); }
+async function delOf(id) { if (!confirm('Eliminar?')) return; await SB.from('gastos_oficina').delete().eq('id', id); await reloadOficina(); render(); }
 
 // REDES
 async function saveMetr() {
   const data = { empresa_id: S.eid, red: vOf('rmR'), seguidores: parseInt(vOf('rmS')) || 0, alcance: parseInt(vOf('rmA')) || 0, likes_prom: parseInt(vOf('rmL')) || 0, posts_mes: parseInt(vOf('rmP')) || 0, engagement: parseFloat(vOf('rmE')) || 0, fecha: td() };
   await SB.from('redes_metricas').insert(data);
-  CM('mo-rm'); await loadAll(); render(); toast('Metricas guardadas');
+  CM('mo-rm'); await reloadRedes(); render(); toast('Metricas guardadas');
 }
 function openMetr(red) { sv('rmR', red); const mt = S.redes_met[red] || {}; sv('rmS', mt.seguidores || ''); sv('rmA', mt.alcance || ''); sv('rmL', mt.likes_prom || ''); sv('rmP', mt.posts_mes || ''); sv('rmE', mt.engagement || ''); OM('mo-rm'); }
 function openNPost() { ['poT', 'poD'].forEach(id => sv(id, '')); sv('poF', td()); OM('mo-post'); }
 async function savePost() {
   const titulo = vOf('poT'); if (!titulo) return toast('Ingresa titulo', 'er');
   await SB.from('redes_posts').insert({ empresa_id: S.eid, red: vOf('poR'), titulo, caption: vOf('poD'), tipo: vOf('poTi'), estado: vOf('poE'), fecha: vOf('poF') });
-  CM('mo-post'); await loadAll(); render(); toast('Post guardado');
+  CM('mo-post'); await reloadRedes(); render(); toast('Post guardado');
 }
 
 // DASH CONFIG
@@ -8304,7 +8363,7 @@ async function saveCC() {
   hideLoad();
   if (error) return toast(error.message, 'er');
   CM('mo-cc');
-  await loadAll(); render();
+  await reloadChica(); render();
   toast(tipo === 'ingreso'
     ? 'Ingreso cargado + egreso generado en Caja Global'
     : 'Egreso de Caja Chica registrado');
@@ -8321,7 +8380,7 @@ async function delCC(id) {
   }
   await SB.from('caja_chica').delete().eq('id', id);
   hideLoad();
-  await loadAll(); render();
+  await reloadChica(); render();
   toast('Movimiento eliminado');
 }
 
