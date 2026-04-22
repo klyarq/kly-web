@@ -1031,12 +1031,7 @@ const S = {
   usuarios_all: [],
   // Config local
   cfg: {
-    feat: null, next: null, tc: 1200, params: {},
-    tramos_roi: [
-      { roi_min: 0,  roi_max: 20,  inv_pct: 70, kly_pct: 30 },
-      { roi_min: 20, roi_max: 40,  inv_pct: 50, kly_pct: 50 },
-      { roi_min: 40, roi_max: 999, inv_pct: 30, kly_pct: 70 },
-    ]
+    feat: null, next: null, tc: 1200, params: {}
   }
 };
 
@@ -1346,7 +1341,6 @@ async function initApp(user) {
   $('app').style.display = 'flex';
   // flexDirection controlled by CSS media queries (row on desktop, column on mobile)
   applyTheme();
-  loadTramosLocales();
   await loadAll();
   setupRT();
   hideLoad();
@@ -2859,74 +2853,6 @@ async function guardarCapitalKLY(pid, val) {
   toast(`Capital KLY: ${fU(cap)}`);
 }
 
-
-// ?? TRAMOS POR PROYECTO ??????????????????????????????????????
-function getTramosProyecto(pid) {
-  const pf = S.proyFinanciero.find(x => x.proyecto_id === pid);
-  if (pf && pf.tramos_roi_json) {
-    try { return JSON.parse(pf.tramos_roi_json); } catch(e) {}
-  }
-  return JSON.parse(JSON.stringify(S.cfg.tramos_roi || []));
-}
-
-function editTramoProyecto(pid, idx, field, val) {
-  const pf = S.proyFinanciero.find(x => x.proyecto_id === pid);
-  if (!pf) return;
-  let tramos = getTramosProyecto(pid);
-  const v = (field === 'roi_max' && (!val || parseFloat(val) >= 999)) ? 999 : parseFloat(val) || 0;
-  tramos[idx][field] = v;
-  if (field === 'inv_pct') tramos[idx].kly_pct = Math.round(100 - v);
-  // Update in memory for live preview
-  pf.tramos_roi_json = JSON.stringify(tramos);
-  render();
-}
-
-function addTramoProyecto(pid) {
-  const pf = S.proyFinanciero.find(x => x.proyecto_id === pid);
-  if (!pf) return;
-  let tramos = getTramosProyecto(pid);
-  const last = tramos.at(-1);
-  const newMin = last ? (last.roi_max >= 999 ? last.roi_min + 20 : last.roi_max) : 0;
-  if (last && last.roi_max >= 999) last.roi_max = newMin;
-  tramos.push({ roi_min: newMin, roi_max: 999, inv_pct: 50, kly_pct: 50 });
-  pf.tramos_roi_json = JSON.stringify(tramos);
-  render();
-}
-
-function delTramoProyecto(pid, idx) {
-  const pf = S.proyFinanciero.find(x => x.proyecto_id === pid);
-  if (!pf) return;
-  let tramos = getTramosProyecto(pid);
-  tramos.splice(idx, 1);
-  pf.tramos_roi_json = JSON.stringify(tramos);
-  render();
-}
-
-async function saveTramosProyecto(pid) {
-  const pf = S.proyFinanciero.find(x => x.proyecto_id === pid);
-  if (!pf) return;
-  const tramos = getTramosProyecto(pid);
-  showLoad();
-  const { error } = await SB.from('proyectos')
-    .update({ tramos_roi_json: JSON.stringify(tramos) })
-    .eq('id', pid);
-  hideLoad();
-  if (error) return toast(error.message, 'er');
-  await reloadProyectos(); render();
-  toast('Tramos guardados para este proyecto');
-}
-
-async function resetTramosProyecto(pid) {
-  if (!confirm('Eliminar los tramos personalizados y volver a usar los globales?')) return;
-  showLoad();
-  const { error } = await SB.from('proyectos')
-    .update({ tramos_roi_json: null })
-    .eq('id', pid);
-  hideLoad();
-  if (error) return toast(error.message, 'er');
-  await reloadProyectos(); render();
-  toast('Tramos restablecidos a configuracion global');
-}
 
 async function cambiarModoDistrib(pid, modo) {
   const upd = { dist_modo: modo };
@@ -6400,205 +6326,289 @@ async function sendIA() {
 // ADMIN
 //
 
-// ?? TRAMOS ROI ????????????????????????????????????????????
-function editTramo(idx, field, val) {
-  const t = S.cfg.tramos_roi[idx];
-  if (!t) return;
-  const v = field === 'roi_max' && (val === '∞' || val === '' || parseFloat(val) >= 999) ? 999 : parseFloat(val) || 0;
-  t[field] = v;
-  if (field === 'inv_pct') t.kly_pct = Math.round(100 - v);
-  // Re-render solo la tabla
-  const tbody = document.getElementById('tramos-tbody');
-  if (tbody) {
-    tbody.querySelectorAll('tr').forEach((tr, i) => {
-      const klyCell = tr.querySelectorAll('td')[3];
-      if (klyCell && S.cfg.tramos_roi[i]) {
-        klyCell.innerHTML = `<div style="display:flex;align-items:center;gap:6px"><span style="font-family:var(--fm);font-size:12px;color:var(--acc2)">${S.cfg.tramos_roi[i].kly_pct}%</span><span style="font-size:9px;color:var(--tx3)">(auto)</span></div>`;
-      }
-    });
-  }
-}
-
-function addTramo() {
-  const last = S.cfg.tramos_roi.at(-1);
-  const newMin = last ? (last.roi_max >= 999 ? last.roi_min + 20 : last.roi_max) : 0;
-  S.cfg.tramos_roi.push({ roi_min: newMin, roi_max: 999, inv_pct: 50, kly_pct: 50 });
-  // Adjust previous last tramo max
-  if (last && last.roi_max >= 999) last.roi_max = newMin;
-  render();
-}
-
-function delTramo(idx) {
-  S.cfg.tramos_roi.splice(idx, 1);
-  render();
-}
-
-async function saveTramos() {
-  // Guardar en params de config en Supabase
-  const params = { ...(S.cfg.params || {}), tramos_roi: S.cfg.tramos_roi };
-  const { error } = await SB.from('configuracion')
-    .upsert({ empresa_id: S.eid, params: JSON.stringify(params) }, { onConflict: 'empresa_id' });
-  if (error) {
-    // Fallback: guardar en localStorage
-    localStorage.setItem('kly_tramos_roi', JSON.stringify(S.cfg.tramos_roi));
-    toast('Tramos guardados localmente (sin tabla configuracion)');
-  } else {
-    toast('Tramos guardados');
-  }
-}
-
-function loadTramosLocales() {
-  const saved = localStorage.getItem('kly_tramos_roi');
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        S.cfg.tramos_roi = parsed;
-      }
-    } catch(e) {}
-  }
-}
 
 function rAdmin() {
   if (S.rol !== 'admin') return '<div class="empty"><h3>Acceso restringido</h3></div>';
   const p = S.cfg.params || {};
+
+  const tcStatus = S.cfg.tc_fecha
+    ? `<span style="color:var(--ok)">●</span> Actualizado ${S.cfg.tc_fecha}`
+    : `<span style="color:var(--tx3)">●</span> Sin actualizar`;
+  const apiKeyOk = !!(S.cfg.anthropic_key);
+
+  // ── Permisos por rol (los que se pueden togglear por usuario) ──
+  const PERMS = [
+    { key: 'ver_caja',       label: 'Caja Global',        roles: ['admin','socio'] },
+    { key: 'ver_socios',     label: 'Caja Socios',        roles: ['admin','socio'] },
+    { key: 'ver_inversores', label: 'Inversores',         roles: ['admin','socio','inversor_externo'] },
+    { key: 'ver_prefact',    label: 'Prefactibilidades',  roles: ['admin','socio'] },
+    { key: 'ver_oficina',    label: 'Oficina',            roles: ['admin','socio'] },
+    { key: 'ver_redes',      label: 'Redes / IA',         roles: ['admin','socio'] },
+    { key: 'editar_gastos',  label: 'Editar gastos obra', roles: ['admin','socio'] },
+    { key: 'eliminar',       label: 'Eliminar registros', roles: ['admin'] },
+    { key: 'admin_panel',    label: 'Panel preferencias', roles: ['admin'] },
+  ];
+
+  const ROL_LABELS = { admin: 'Admin', socio: 'Socio', inversor_externo: 'Inversor' };
+  const ROL_COLORS = { admin: 'by', socio: 'bb', inversor_externo: 'bgr' };
+
+  const semaforoBar = (verde, amarillo) => {
+    const max = amarillo * 1.4;
+    const pV  = Math.round(verde    / max * 100);
+    const pY  = Math.round(amarillo / max * 100);
+    return `<div style="margin-top:6px">
+      <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;gap:1px">
+        <div style="width:${pV}%;background:var(--ok);border-radius:3px 0 0 3px"></div>
+        <div style="width:${pY-pV}%;background:var(--acc)"></div>
+        <div style="flex:1;background:var(--err);border-radius:0 3px 3px 0"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:8px;color:var(--tx3)">
+        <span style="color:var(--ok)">verde &lt;${fN(verde)}</span>
+        <span style="color:var(--acc)">amarillo &lt;${fN(amarillo)}</span>
+        <span style="color:var(--err)">rojo</span>
+      </div>
+    </div>`;
+  };
+
   return `
-  <div class="g2 mb12" style="align-items:start">
-    <div class="card">
-      <div class="sh"><div class="st">Parámetros del sistema</div><button class="btn bp bs" onclick="saveParams()">Guardar</button></div>
-      <!-- TC con fetch automático -->
-      <div class="sh mb0" style="margin-bottom:6px"><div class="st" style="font-size:10px">Tipo de cambio</div><button class="btn bp bs" id="btnFetchTC" onclick="fetchTC()">↻ Actualizar TC</button></div>
-      <div class="g3 mb8" style="gap:6px">
-        <div style="background:var(--s1);border-radius:var(--r1);padding:8px 10px;text-align:center">
-          <div style="font-size:8px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Blue</div>
-          <div id="tc-blue-val" style="font-family:var(--fm);font-size:14px;color:var(--acc)">${S.cfg.tc_blue ? '$ '+fA(S.cfg.tc_blue) : '—'}</div>
-        </div>
-        <div style="background:var(--s1);border-radius:var(--r1);padding:8px 10px;text-align:center">
-          <div style="font-size:8px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Oficial</div>
-          <div id="tc-oficial-val" style="font-family:var(--fm);font-size:14px;color:var(--tx2)">${S.cfg.tc_oficial ? '$ '+fA(S.cfg.tc_oficial) : '—'}</div>
-        </div>
-        <div style="background:var(--s1);border-radius:var(--r1);padding:8px 10px;text-align:center">
-          <div style="font-size:8px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Actualizado</div>
-          <div id="tc-fecha-val" style="font-family:var(--fm);font-size:11px;color:var(--tx2)">${S.cfg.tc_fecha || '—'}</div>
-        </div>
-      </div>
-      <div class="fg"><label>TC a usar en cálculos (editable)</label><input type="number" id="par-tc" value="${S.cfg.tc || 1200}" oninput="S.cfg.tc=parseFloat(this.value)||1200;$('tcdisplay').textContent=fA(S.cfg.tc)"></div>
-      <div class="fg"><label>API Key Anthropic <span style="font-size:9px;color:var(--tx3)">(para presentaciones IA)</span></label>
-        <input type="password" id="par-apikey" value="${S.cfg.anthropic_key||''}" placeholder="sk-ant-..." oninput="S.cfg.anthropic_key=this.value">
-        <div style="font-size:9px;color:var(--tx3);margin-top:3px">Obtené tu key en console.anthropic.com · Se guarda localmente en este browser</div>
-      </div>
-      <div class="fg"><label>Comisión estándar compra %</label><input type="number" id="par-com" value="${p.comision_std || 3}" step="0.5"></div>
-      <div class="fg"><label>ROI mínimo viable %</label><input type="number" id="par-roi" value="${p.roi_min || 20}"></div>
-      <div class="div"></div>
-      <div style="font-size:8px;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Semáforo $/m² (compra pura)</div>
-      <div class="fr"><div class="fg"><label>Verde hasta</label><input type="number" id="par-m2g" value="${p.m2_verde || 1200}"></div><div class="fg"><label>Amarillo hasta</label><input type="number" id="par-m2y" value="${p.m2_amarillo || 1500}"></div></div>
-      <div style="font-size:8px;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Semáforo $/m² (costo total)</div>
-      <div class="fr"><div class="fg"><label>Verde hasta</label><input type="number" id="par-m2tg" value="${p.m2_total_verde || 1500}"></div><div class="fg"><label>Amarillo hasta</label><input type="number" id="par-m2ty" value="${p.m2_total_amarillo || 1700}"></div></div>
+  <!-- ══ HEADER ══ -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
+    <div>
+      <div style="font-size:18px;font-weight:800;letter-spacing:.5px">Preferencias</div>
+      <div style="font-size:10px;color:var(--tx3);margin-top:2px">Configuración global · Solo admins</div>
     </div>
-    <!-- TRAMOS ROI -->
-    <div class="card" style="grid-column:1/-1">
-      <div class="sh">
-        <div class="st">Distribución por tramos de ROI</div>
-        <button class="btn bp bs" onclick="addTramo()">+ Tramo</button>
+    <button class="btn bp" onclick="saveParams()">💾 Guardar cambios</button>
+  </div>
+
+  <!-- ══ FILA 1: TC + IA ══ -->
+  <div class="g2 mb12" style="align-items:start">
+
+    <!-- Tipo de cambio -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <div style="font-size:13px;font-weight:700">💱 Tipo de cambio</div>
+          <div style="font-size:9px;color:var(--tx3);margin-top:2px">${tcStatus}</div>
+        </div>
+        <button class="btn bg bs" id="btnFetchTC" onclick="fetchTC()">↻ Actualizar</button>
       </div>
-      <div style="font-size:10px;color:var(--tx3);margin-bottom:12px">
-        Cuando un proyecto usa modo <strong>Automático por ROI</strong>, el sistema asigna el porcentaje según el tramo que corresponde al ROI del proyecto.
+      <div class="g2 mb12" style="gap:8px">
+        <div style="background:rgba(245,208,32,.06);border:1px solid rgba(245,208,32,.2);border-radius:var(--r);padding:12px;text-align:center">
+          <div style="font-size:8px;color:var(--acc);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">Dólar Blue</div>
+          <div id="tc-blue-val" style="font-family:var(--fm);font-size:22px;font-weight:700;color:var(--acc)">${S.cfg.tc_blue ? '$ '+fN(S.cfg.tc_blue) : '—'}</div>
+        </div>
+        <div style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:12px;text-align:center">
+          <div style="font-size:8px;color:var(--tx3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">Oficial</div>
+          <div id="tc-oficial-val" style="font-family:var(--fm);font-size:22px;font-weight:700;color:var(--tx2)">${S.cfg.tc_oficial ? '$ '+fN(S.cfg.tc_oficial) : '—'}</div>
+        </div>
       </div>
-      <div class="tw">
-        <table>
-          <thead><tr><th>ROI mínimo %</th><th>ROI máximo %</th><th>% Inversores</th><th>% KLY</th><th></th></tr></thead>
-          <tbody id="tramos-tbody">
-            ${(S.cfg.tramos_roi || []).map((t, i) => `
-            <tr>
-              <td><input type="number" value="${t.roi_min}" min="0" step="1"
-                style="width:70px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:4px 7px;color:var(--tx);font-size:11px"
-                onchange="editTramo(${i},'roi_min',this.value)"></td>
-              <td><input type="number" value="${t.roi_max >= 999 ? '∞' : t.roi_max}" min="0" step="1" placeholder="∞"
-                style="width:70px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:4px 7px;color:var(--tx);font-size:11px"
-                onchange="editTramo(${i},'roi_max',this.value)"></td>
-              <td>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <input type="number" value="${t.inv_pct}" min="0" max="100" step="1"
-                    style="width:60px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:4px 7px;color:var(--acc);font-size:11px"
-                    onchange="editTramo(${i},'inv_pct',this.value)">
-                  <span style="font-size:10px;color:var(--tx3)">%</span>
-                </div>
-              </td>
-              <td>
-                <div style="display:flex;align-items:center;gap:6px">
-                  <span style="font-family:var(--fm);font-size:12px;color:var(--acc2)">${t.kly_pct}%</span>
-                  <span style="font-size:9px;color:var(--tx3)">(auto)</span>
-                </div>
-              </td>
-              <td><button class="btn bd bx" onclick="delTramo(${i})">✕</button></td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:10px">
-        <button class="btn bp bs" onclick="saveTramos()">💾 Guardar tramos</button>
+      <div class="fg" style="margin-bottom:0">
+        <label>TC activo en cálculos <span style="color:var(--acc);font-weight:600">(se sincroniza entre socios)</span></label>
+        <div style="position:relative">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--tx3);font-family:var(--fm)">$</span>
+          <input type="number" id="par-tc" value="${S.cfg.tc || 1200}" style="padding-left:22px"
+            oninput="S.cfg.tc=parseFloat(this.value)||1200;$('tcdisplay').textContent=fA(S.cfg.tc)">
+        </div>
       </div>
     </div>
 
+    <!-- IA -->
     <div class="card">
-      <div class="sh"><div class="st">Usuarios y permisos</div></div>
-      ${S.usuarios_all.map(u => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--b1)">
-          <div><div style="font-weight:600;font-size:12px">${u.nombre} ${u.apellido || ''}</div><div style="font-size:9px;color:var(--tx3)">${u.rol}</div></div>
-          <select style="width:auto;padding:3px 6px;font-size:10px" onchange="cambiarRol('${u.id}',this.value)">
-            <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Admin</option>
-            <option value="socio" ${u.rol === 'socio' ? 'selected' : ''}>Socio</option>
-            <option value="inversor_externo" ${u.rol === 'inversor_externo' ? 'selected' : ''}>Inversor</option>
-          </select>
-        </div>`).join('')}
-      <div style="margin-top:12px;font-size:9px;color:var(--tx3)">Para agregar usuario: Supabase → Auth → Add user → luego insertar en tabla usuarios</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <div style="font-size:13px;font-weight:700">✨ Inteligencia Artificial</div>
+          <div style="font-size:9px;color:var(--tx3);margin-top:2px">Para generación de presentaciones a inversores</div>
+        </div>
+        <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:9px;font-weight:700;
+          background:${apiKeyOk ? 'rgba(77,240,160,.1)' : 'rgba(255,255,255,.04)'};
+          color:${apiKeyOk ? 'var(--ok)' : 'var(--tx3)'};
+          border:1px solid ${apiKeyOk ? 'rgba(77,240,160,.3)' : 'var(--b1)'}">
+          ${apiKeyOk ? '● Configurada' : '○ Sin configurar'}
+        </span>
+      </div>
+      <div class="fg" style="margin-bottom:8px">
+        <label>API Key Anthropic</label>
+        <div style="position:relative">
+          <input type="password" id="par-apikey" value="${S.cfg.anthropic_key||''}"
+            placeholder="sk-ant-api03-..."
+            style="padding-right:40px;font-family:var(--fm);font-size:11px"
+            oninput="S.cfg.anthropic_key=this.value">
+          <button type="button" onclick="togglePassVis('par-apikey',this)"
+            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);cursor:pointer;font-size:14px;padding:2px">👁</button>
+        </div>
+      </div>
+      <div style="background:var(--s2);border-radius:var(--r);padding:10px 12px;font-size:10px;color:var(--tx3);line-height:1.7">
+        📌 Se guarda <strong style="color:var(--tx2)">solo en este navegador</strong> — no se comparte con otros socios.<br>
+        Obtené la tuya en <span style="color:var(--acc)">console.anthropic.com</span>
+      </div>
     </div>
   </div>
+
+  <!-- ══ PARÁMETROS FINANCIEROS ══ -->
   <div class="card mb12">
-    <div class="sh"><div class="st">Permisos por rol</div></div>
-    <div class="tw"><table>
-      <thead><tr><th>Acción</th><th>Admin</th><th>Socio</th><th>Inversor</th></tr></thead>
-      <tbody>${[
-    ['Ver dashboard', 'OK', 'OK', '✗'],
-    ['Crear / editar proyectos', 'OK', 'OK', '✗'],
-    ['Eliminar proyectos', 'OK', '✗', '✗'],
-    ['Gastos de obra (editar inline)', 'OK', 'OK', '✗'],
-    ['Caja global', 'OK', 'OK', '✗'],
-    ['Eliminar movimientos', 'OK', '✗', '✗'],
-    ['Caja socios (propia)', 'OK', 'OK (propia)', '✗'],
-    ['Inversores', 'OK', 'OK', 'Solo propias'],
-    ['Subir documentos', 'OK', 'OK', '✗'],
-    ['Prefactibilidades', 'OK', 'OK', '✗'],
-    ['Redes / IA', 'OK', 'OK', '✗'],
-    ['Panel de preferencias', 'OK', '✗', '✗'],
-  ].map(([a, ad, s, i]) => `<tr>
-          <td class="b">${a}</td>
-          <td class="pos">${ad}</td>
-          <td class="${s === '✗' ? 'neg' : s === 'OK' ? 'pos' : 'acc'}">${s}</td>
-          <td class="${i === '✗' ? 'neg' : i === 'OK' ? 'pos' : 'acc'}">${i}</td>
-        </tr>`).join('')}
-      </tbody></table></div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:16px">📊 Parámetros financieros</div>
+    <div class="g2" style="gap:20px;align-items:start">
+      <div>
+        <div class="fr mb12">
+          <div class="fg" style="margin:0">
+            <label>ROI mínimo viable %</label>
+            <input type="number" id="par-roi" value="${p.roi_min || 20}" step="1" min="0">
+            <div style="font-size:9px;color:var(--tx3);margin-top:3px">Prefactibilidades con ROI menor → rojo</div>
+          </div>
+          <div class="fg" style="margin:0">
+            <label>Comisión estándar compra %</label>
+            <input type="number" id="par-com" value="${p.comision_std || 3}" step="0.5" min="0">
+            <div style="font-size:9px;color:var(--tx3);margin-top:3px">Se precarga en nuevas prefactibilidades</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="margin-bottom:14px">
+          <div style="font-size:10px;font-weight:700;color:var(--tx2);margin-bottom:8px">🚦 Semáforo $/m² — precio compra pura</div>
+          <div class="fr">
+            <div class="fg" style="margin:0"><label>🟢 Verde hasta</label><input type="number" id="par-m2g" value="${p.m2_verde || 1200}"></div>
+            <div class="fg" style="margin:0"><label>🟡 Amarillo hasta</label><input type="number" id="par-m2y" value="${p.m2_amarillo || 1500}"></div>
+          </div>
+          ${semaforoBar(p.m2_verde || 1200, p.m2_amarillo || 1500)}
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--tx2);margin-bottom:8px">🚦 Semáforo $/m² — costo total (compra+obra)</div>
+          <div class="fr">
+            <div class="fg" style="margin:0"><label>🟢 Verde hasta</label><input type="number" id="par-m2tg" value="${p.m2_total_verde || 1500}"></div>
+            <div class="fg" style="margin:0"><label>🟡 Amarillo hasta</label><input type="number" id="par-m2ty" value="${p.m2_total_amarillo || 1700}"></div>
+          </div>
+          ${semaforoBar(p.m2_total_verde || 1500, p.m2_total_amarillo || 1700)}
+        </div>
+      </div>
+    </div>
   </div>
+
+  <!-- ══ USUARIOS Y PERMISOS ══ -->
   <div class="card mb12">
-    <div class="sh"><div class="st">Estado del sistema</div></div>
-    <div class="g4">
-      <div><div class="cl">Proyectos</div><div style="font-family:var(--fm);font-size:16px">${S.proyectos.length}</div></div>
-      <div><div class="cl">Gastos obra</div><div style="font-family:var(--fm);font-size:16px">${S.gastosObra.length || '—'}</div></div>
-      <div><div class="cl">Movimientos caja</div><div style="font-family:var(--fm);font-size:16px">${S.movimientos.length}</div></div>
-      <div><div class="cl">Documentos</div><div style="font-family:var(--fm);font-size:16px">${S.docs.length}</div></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div>
+        <div style="font-size:13px;font-weight:700">👥 Usuarios y permisos</div>
+        <div style="font-size:9px;color:var(--tx3);margin-top:2px">${S.usuarios_all.length} usuario${S.usuarios_all.length !== 1 ? 's' : ''} en la empresa</div>
+      </div>
     </div>
-    <div class="div"></div>
-    <div style="font-size:10px;color:var(--tx3)">
-      Empresa: <span style="font-family:var(--fm);color:var(--tx2)">${S.eid}</span> ·
-      Usuario: <span style="font-family:var(--fm);color:var(--tx2)">${S.user?.email}</span>
+
+    ${S.usuarios_all.map(u => {
+      const isSelf   = u.id === S.user.id;
+      const rolColor = ROL_COLORS[u.rol] || 'bgr';
+      const rolLabel = ROL_LABELS[u.rol] || u.rol;
+      const inicial  = (u.nombre||'?')[0].toUpperCase();
+
+      // Permisos efectivos según rol (qué debería poder vs qué le bloqueamos)
+      const permsSocio   = ['ver_caja','ver_socios','ver_inversores','ver_prefact','ver_oficina','ver_redes','editar_gastos'];
+      const permsInversor = ['ver_inversores'];
+      const permsAdmin   = PERMS.map(p => p.key);
+      const defaultPerms = u.rol === 'admin' ? permsAdmin : u.rol === 'socio' ? permsSocio : permsInversor;
+
+      // permisos_extra guardado en campo (si no existe, defaultPerms)
+      const extraOn  = u.permisos_extra  ? (Array.isArray(u.permisos_extra) ? u.permisos_extra : []) : defaultPerms;
+      const extraOff = u.permisos_bloq   ? (Array.isArray(u.permisos_bloq)  ? u.permisos_bloq  : []) : [];
+
+      const canPerm  = pkey => {
+        if (u.rol === 'admin') return true; // admins siempre tienen todo
+        if (extraOff.includes(pkey)) return false;
+        return extraOn.includes(pkey);
+      };
+
+      return `
+      <div style="border:1px solid var(--b1);border-radius:var(--r2);padding:16px;margin-bottom:10px;${isSelf ? 'border-color:rgba(245,208,32,.3);background:rgba(245,208,32,.02)' : ''}">
+        <!-- Header usuario -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <div style="width:38px;height:38px;border-radius:50%;
+            background:rgba(245,208,32,.12);border:2px solid rgba(245,208,32,.25);
+            display:flex;align-items:center;justify-content:center;
+            font-size:15px;font-weight:800;color:var(--acc);flex-shrink:0">${inicial}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px;color:var(--tx);display:flex;align-items:center;gap:7px">
+              ${u.nombre} ${u.apellido || ''}
+              ${isSelf ? '<span style="font-size:8px;color:var(--acc);border:1px solid rgba(245,208,32,.3);border-radius:3px;padding:1px 6px;letter-spacing:1px">VOS</span>' : ''}
+            </div>
+            <div style="font-size:10px;color:var(--tx3);margin-top:2px">${u.email || '—'}</div>
+          </div>
+          <!-- Selector de rol -->
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <span style="font-size:9px;color:var(--tx3)">Rol:</span>
+            <select
+              style="background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:5px 10px;font-size:11px;font-weight:600;color:var(--tx);cursor:pointer"
+              ${isSelf ? 'disabled title="No podés cambiar tu propio rol"' : ''}
+              onchange="cambiarRol('${u.id}', this.value)">
+              <option value="admin"            ${u.rol==='admin'            ? 'selected':''}>👑 Admin</option>
+              <option value="socio"            ${u.rol==='socio'            ? 'selected':''}>🤝 Socio</option>
+              <option value="inversor_externo" ${u.rol==='inversor_externo' ? 'selected':''}>💰 Inversor</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Permisos granulares (solo para no-admins) -->
+        ${u.rol === 'admin' ? `
+        <div style="background:rgba(245,208,32,.05);border:1px solid rgba(245,208,32,.15);border-radius:var(--r);padding:9px 12px;font-size:10px;color:var(--tx3)">
+          ✓ Admin tiene acceso completo a todas las secciones
+        </div>` : `
+        <div>
+          <div style="font-size:8px;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px">Acceso a secciones</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${PERMS.filter(pm => pm.roles.includes(u.rol) || pm.roles.includes('admin')).map(pm => {
+              const active = canPerm(pm.key);
+              const esRolDefault = defaultPerms.includes(pm.key);
+              const bloqueado = u.rol !== 'admin' && !pm.roles.includes(u.rol);
+              return `<button
+                onclick="${bloqueado ? '' : `togglePermiso('${u.id}','${pm.key}',${!active})`}"
+                style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;font-size:10px;font-weight:600;cursor:${bloqueado ? 'not-allowed' : 'pointer'};transition:.15s;
+                  border:1px solid ${active ? 'rgba(77,240,160,.4)' : 'var(--b1)'};
+                  background:${active ? 'rgba(77,240,160,.08)' : 'rgba(255,255,255,.02)'};
+                  color:${active ? 'var(--ok)' : 'var(--tx3)'};
+                  opacity:${bloqueado ? '.35' : '1'}"
+                title="${bloqueado ? 'No disponible para este rol' : (active ? 'Clic para revocar' : 'Clic para habilitar')}">
+                ${active ? '✓' : '○'} ${pm.label}
+              </button>`;
+            }).join('')}
+          </div>
+          <div style="font-size:9px;color:var(--tx3);margin-top:8px">Los cambios de permisos se aplican al instante.</div>
+        </div>`}
+      </div>`;
+    }).join('')}
+
+    <div style="padding:10px 12px;background:var(--s2);border-radius:var(--r);font-size:10px;color:var(--tx3);line-height:1.6;margin-top:6px">
+      💡 Para <strong>agregar</strong> un nuevo usuario: Supabase → Authentication → Add user → insertar en tabla <code style="color:var(--acc)">usuarios</code> con el mismo UUID.
     </div>
   </div>
+
+  <!-- ══ ESTADO DEL SISTEMA ══ -->
+  <div class="card mb12">
+    <div style="font-size:13px;font-weight:700;margin-bottom:14px">🖥 Estado del sistema</div>
+    <div class="g4 mb12">
+      ${[
+        ['Proyectos',   S.proyectos.length,   'acc'],
+        ['Movimientos', S.movimientos.length,  'tx'],
+        ['Documentos',  S.docs.length,         'tx'],
+        ['Inversores',  S.inversores.length,   'tx'],
+      ].map(([lbl, val, clr]) => `
+      <div style="background:var(--s2);border-radius:var(--r);padding:12px;text-align:center">
+        <div style="font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${lbl}</div>
+        <div style="font-family:var(--fm);font-size:20px;font-weight:700;color:var(--${clr})">${val}</div>
+      </div>`).join('')}
+    </div>
+    <div style="padding:10px 12px;background:var(--s2);border-radius:var(--r);font-size:10px;color:var(--tx3);display:flex;gap:16px;flex-wrap:wrap">
+      <span>🏢 Empresa: <code style="color:var(--tx2);font-family:var(--fm)">${S.eid}</code></span>
+      <span>👤 Usuario: <code style="color:var(--tx2);font-family:var(--fm)">${S.user?.email}</code></span>
+      <span>🔑 Rol: <span class="badge by">${S.rol}</span></span>
+    </div>
+  </div>
+
+  <!-- ══ ZONA DE PELIGRO ══ -->
   <div class="card er">
-    <div class="sh"><div class="st" style="color:var(--err)">Zona de peligro</div></div>
-    <div style="display:flex;gap:10px">
-      <button class="btn bd" onclick="exportarDatos()">Exportar JSON</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--err)">⚠ Zona de peligro</div>
+        <div style="font-size:9px;color:var(--tx3);margin-top:2px">Acciones irreversibles o de alto impacto</div>
+      </div>
     </div>
-    <div style="font-size:9px;color:var(--tx3);margin-top:8px">La exportación descarga todos los datos en formato JSON.</div>
+    <button class="btn bd" onclick="exportarDatos()">↓ Exportar JSON</button>
+    <div style="font-size:9px;color:var(--tx3);margin-top:8px">Descarga todos los datos de la empresa en formato JSON.</div>
   </div>`;
 }
 
@@ -6728,11 +6738,61 @@ async function fetchTC() {
   }
 }
 async function cambiarRol(userId, nuevoRol) {
-  if (!confirm(`Cambiar rol a "${nuevoRol}"?`)) return;
+  const u = S.usuarios_all.find(x => x.id === userId);
+  const nombre = u ? u.nombre : 'este usuario';
+  if (!confirm(`¿Cambiar el rol de ${nombre} a "${nuevoRol}"?`)) {
+    // Revertir el select visualmente
+    render(); return;
+  }
   showLoad();
-  await SB.from('usuarios').update({ rol: nuevoRol }).eq('id', userId);
+  const { error } = await SB.from('usuarios').update({ rol: nuevoRol }).eq('id', userId);
   hideLoad();
-  await loadSections(['usuarios']); render(); toast('Rol actualizado');
+  if (error) return toast(error.message, 'er');
+  await loadSections(['usuarios']); render(); toast(`Rol de ${nombre} actualizado a ${nuevoRol}`);
+}
+
+async function togglePermiso(userId, permisoKey, habilitar) {
+  const u = S.usuarios_all.find(x => x.id === userId);
+  if (!u) return;
+
+  // Calcular nuevo estado de permisos_extra y permisos_bloq
+  let extra = Array.isArray(u.permisos_extra) ? [...u.permisos_extra] : _defaultPerms(u.rol);
+  let bloq  = Array.isArray(u.permisos_bloq)  ? [...u.permisos_bloq]  : [];
+
+  if (habilitar) {
+    // Agregar a extra, quitar de bloq
+    if (!extra.includes(permisoKey)) extra.push(permisoKey);
+    bloq = bloq.filter(k => k !== permisoKey);
+  } else {
+    // Quitar de extra, agregar a bloq
+    extra = extra.filter(k => k !== permisoKey);
+    if (!bloq.includes(permisoKey)) bloq.push(permisoKey);
+  }
+
+  // Optimistic update en memoria para respuesta inmediata
+  u.permisos_extra = extra;
+  u.permisos_bloq  = bloq;
+  render();
+
+  const { error } = await SB.from('usuarios')
+    .update({ permisos_extra: extra, permisos_bloq: bloq })
+    .eq('id', userId);
+
+  if (error) {
+    toast(error.message, 'er');
+    await loadSections(['usuarios']); render(); // revertir
+  } else {
+    toast(`Permiso "${permisoKey}" ${habilitar ? 'habilitado' : 'revocado'} para ${u.nombre}`);
+  }
+}
+
+function _defaultPerms(rol) {
+  const map = {
+    admin:            ['ver_caja','ver_socios','ver_inversores','ver_prefact','ver_oficina','ver_redes','editar_gastos','eliminar','admin_panel'],
+    socio:            ['ver_caja','ver_socios','ver_inversores','ver_prefact','ver_oficina','ver_redes','editar_gastos'],
+    inversor_externo: ['ver_inversores'],
+  };
+  return map[rol] || [];
 }
 //
 // LIQUIDACI?N AUTOM?TICA DE INVERSORES
